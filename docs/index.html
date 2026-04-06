@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plugables — Gradle Plugins for Android</title>
-  <meta name="description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects, published to GitHub Packages." />
+  <meta name="description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects, published to the Gradle Plugin Portal." />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -25,7 +25,7 @@
 
   <!-- ─── Hero ───────────────────────────────────────────────── -->
   <section class="hero">
-    <p class="hero-eyebrow">Gradle Plugins · GitHub Packages</p>
+    <p class="hero-eyebrow">Gradle Plugins · Plugin Portal</p>
     <h1 class="hero-title">Plug<em>ables</em></h1>
     <p class="hero-desc">
       Opinionated code-generation plugins for Android &amp; Kotlin projects.
@@ -41,34 +41,28 @@
   <!-- ─── Repository Setup ───────────────────────────────────── -->
   <section class="section">
     <p class="section-label">Getting Started</p>
-    <h2 style="margin-top:0">Add the repository</h2>
+    <h2 style="margin-top:0">Apply a plugin</h2>
     <p>
-      All plugins are published to GitHub Packages. Add the Maven repository to
-      your project's <code>settings.gradle.kts</code> before applying any plugin.
+      All plugins are published to the
+      <a href="https://plugins.gradle.org/search?term=com.rohittp.plugables" target="_blank" rel="noopener">Gradle Plugin Portal</a>.
+      No repository configuration is needed — just apply the plugin directly in your
+      module's <code>build.gradle.kts</code>:
     </p>
 
     <div class="code-wrap">
-      <span class="code-lang">settings.gradle.kts</span>
-      <pre><code><span class="fn">dependencyResolutionManagement</span> <span class="op">{</span>
-    <span class="fn">repositories</span> <span class="op">{</span>
-        <span class="fn">maven</span> <span class="op">{</span>
-            <span class="k">name</span> <span class="op">=</span> <span class="st">"GitHubPackages"</span>
-            <span class="k">url</span> <span class="op">=</span> <span class="fn">uri</span><span class="op">(</span><span class="st">"https://maven.pkg.github.com/rohittp0/plugables"</span><span class="op">)</span>
-            <span class="fn">credentials</span> <span class="op">{</span>
-                <span class="k">username</span> <span class="op">=</span> <span class="fn">providers</span><span class="op">.</span><span class="fn">gradleProperty</span><span class="op">(</span><span class="st">"gpr.user"</span><span class="op">).</span><span class="fn">orNull</span>
-                <span class="k">password</span> <span class="op">=</span> <span class="fn">providers</span><span class="op">.</span><span class="fn">gradleProperty</span><span class="op">(</span><span class="st">"gpr.token"</span><span class="op">).</span><span class="fn">orNull</span>
-            <span class="op">}</span>
-        <span class="op">}</span>
-    <span class="op">}</span>
+      <span class="code-lang">build.gradle.kts</span>
+      <pre><code><span class="fn">plugins</span> <span class="op">{</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.viewmodel-stub"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+    <span class="cm">// or</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.typed-events"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
 <span class="op">}</span></code></pre>
     </div>
 
     <div class="callout tip">
-      <p class="callout-title">Credentials</p>
+      <p class="callout-title">No credentials required</p>
       <p>
-        Store <code>gpr.user</code> (your GitHub username) and <code>gpr.token</code>
-        (a GitHub personal access token with <code>read:packages</code> scope) in
-        <code>~/.gradle/gradle.properties</code> — never commit them to source control.
+        The Gradle Plugin Portal is the default plugin repository — no extra
+        <code>repositories</code> block or authentication setup needed.
       </p>
     </div>
   </section>
@@ -157,7 +151,7 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <a href="index.html" class="footer-brand">Plugables</a>
-    <span class="footer-meta">Published to GitHub Packages · Group <code>com.rohittp.plugables</code></span>
+    <span class="footer-meta">Published to the Gradle Plugin Portal · Group <code>com.rohittp.plugables</code></span>
     <div class="footer-links">
       <a href="https://github.com/rohittp0/plugables" target="_blank" rel="noopener">Source</a>
       <a href="viewmodel-stub.html">viewmodel-stub</a>
