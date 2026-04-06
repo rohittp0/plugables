@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plugables — Gradle Plugins for Android</title>
+  <meta name="description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects, published to GitHub Packages." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─── Navigation ─────────────────────────────────────────── -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">Plugables</a>
+    <div class="nav-links">
+      <a href="viewmodel-stub.html">viewmodel-stub</a>
+      <a href="typed-events.html">typed-events</a>
+      <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<div class="home-layout">
+
+  <!-- ─── Hero ───────────────────────────────────────────────── -->
+  <section class="hero">
+    <p class="hero-eyebrow">Gradle Plugins · GitHub Packages</p>
+    <h1 class="hero-title">Plug<em>ables</em></h1>
+    <p class="hero-desc">
+      Opinionated code-generation plugins for Android &amp; Kotlin projects.
+      Eliminate boilerplate, generate from source or schema, and ship faster.
+    </p>
+    <div class="hero-meta">
+      <span>Group: <code>com.rohittp.plugables</code></span>
+      <span>2 plugins</span>
+      <span>JVM 21</span>
+    </div>
+  </section>
+
+  <!-- ─── Repository Setup ───────────────────────────────────── -->
+  <section class="section">
+    <p class="section-label">Getting Started</p>
+    <h2 style="margin-top:0">Add the repository</h2>
+    <p>
+      All plugins are published to GitHub Packages. Add the Maven repository to
+      your project's <code>settings.gradle.kts</code> before applying any plugin.
+    </p>
+
+    <div class="code-wrap">
+      <span class="code-lang">settings.gradle.kts</span>
+      <pre><code><span class="fn">dependencyResolutionManagement</span> <span class="op">{</span>
+    <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">maven</span> <span class="op">{</span>
+            <span class="k">name</span> <span class="op">=</span> <span class="st">"GitHubPackages"</span>
+            <span class="k">url</span> <span class="op">=</span> <span class="fn">uri</span><span class="op">(</span><span class="st">"https://maven.pkg.github.com/rohittp0/plugables"</span><span class="op">)</span>
+            <span class="fn">credentials</span> <span class="op">{</span>
+                <span class="k">username</span> <span class="op">=</span> <span class="fn">providers</span><span class="op">.</span><span class="fn">gradleProperty</span><span class="op">(</span><span class="st">"gpr.user"</span><span class="op">).</span><span class="fn">orNull</span>
+                <span class="k">password</span> <span class="op">=</span> <span class="fn">providers</span><span class="op">.</span><span class="fn">gradleProperty</span><span class="op">(</span><span class="st">"gpr.token"</span><span class="op">).</span><span class="fn">orNull</span>
+            <span class="op">}</span>
+        <span class="op">}</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+    </div>
+
+    <div class="callout tip">
+      <p class="callout-title">Credentials</p>
+      <p>
+        Store <code>gpr.user</code> (your GitHub username) and <code>gpr.token</code>
+        (a GitHub personal access token with <code>read:packages</code> scope) in
+        <code>~/.gradle/gradle.properties</code> — never commit them to source control.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── Plugins ─────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-label">Available Plugins</p>
+    <h2 style="margin-top:0">Choose a plugin</h2>
+    <p>Each plugin is fully self-contained with its own versioning and DSL block.</p>
+
+    <div class="plugin-grid">
+
+      <a href="viewmodel-stub.html" class="plugin-card">
+        <div class="card-header">
+          <span class="card-name">viewmodel-stub</span>
+          <span class="card-arrow">↗</span>
+        </div>
+        <p class="card-desc">
+          Scans your Kotlin source for classes annotated with
+          <code>@ViewModelStub</code> and generates a matching interface
+          and a no-op stub implementation — ready for use in unit tests
+          and Compose previews.
+        </p>
+        <div class="card-tags">
+          <span class="badge badge-version">v1.0.0</span>
+          <span class="badge badge-platform">Android</span>
+          <span class="badge badge-kotlin">Kotlin</span>
+        </div>
+      </a>
+
+      <a href="typed-events.html" class="plugin-card">
+        <div class="card-header">
+          <span class="card-name">typed-events</span>
+          <span class="card-arrow">↗</span>
+        </div>
+        <p class="card-desc">
+          Reads an analytics event schema from a YAML file and generates
+          an abstract <code>AnalyticsBase</code> class with fully-typed
+          methods per event. Override a single <code>logEvent</code> function
+          to connect any analytics backend.
+        </p>
+        <div class="card-tags">
+          <span class="badge badge-version">v1.0.0</span>
+          <span class="badge badge-platform">Android</span>
+          <span class="badge badge-kotlin">Kotlin</span>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ─── Philosophy ──────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-label">Design Philosophy</p>
+    <h2 style="margin-top:0">Conventions over configuration</h2>
+    <p>
+      Plugables plugins are opinionated by design. Each plugin does one thing,
+      has sensible defaults, and requires minimal configuration. The generated
+      code is plain, readable Kotlin — no runtime dependencies, no reflection,
+      no surprises.
+    </p>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <strong>Source-driven</strong>
+        <p>Generate from what you already write — annotations or YAML schemas.</p>
+      </div>
+      <div class="feature-item">
+        <strong>Zero runtime</strong>
+        <p>Generated files are just Kotlin. No runtime library to add.</p>
+      </div>
+      <div class="feature-item">
+        <strong>Config-cache safe</strong>
+        <p>All tasks use <code>Provider</code> APIs throughout for Gradle compatibility.</p>
+      </div>
+      <div class="feature-item">
+        <strong>AGP integrated</strong>
+        <p>Output is automatically wired into the Android <code>main</code> source set.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ─── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index.html" class="footer-brand">Plugables</a>
+    <span class="footer-meta">Published to GitHub Packages · Group <code>com.rohittp.plugables</code></span>
+    <div class="footer-links">
+      <a href="https://github.com/rohittp0/plugables" target="_blank" rel="noopener">Source</a>
+      <a href="viewmodel-stub.html">viewmodel-stub</a>
+      <a href="typed-events.html">typed-events</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

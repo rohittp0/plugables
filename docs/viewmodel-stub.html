@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>viewmodel-stub — Plugables</title>
+  <meta name="description" content="Generate ViewModel interfaces and no-op stubs from annotated Kotlin classes. Perfect for unit tests and Compose previews." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─── Navigation ─────────────────────────────────────────── -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">Plugables</a>
+    <div class="nav-links">
+      <a href="viewmodel-stub.html">viewmodel-stub</a>
+      <a href="typed-events.html">typed-events</a>
+      <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- ─── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <nav class="toc">
+      <p class="toc-title">On this page</p>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#annotation">The @ViewModelStub Annotation</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#example">Full Example</a></li>
+        <li><a href="#generated-files" class="toc-h3">Input ViewModel</a></li>
+        <li><a href="#generated-interface" class="toc-h3">Generated Interface</a></li>
+        <li><a href="#generated-stub" class="toc-h3">Generated Stub</a></li>
+        <li><a href="#parser-behavior">Parser Behavior</a></li>
+        <li><a href="#type-defaults">Type Defaults</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ─── Content ──────────────────────────────────────────── -->
+  <main class="content">
+
+    <div class="breadcrumb">
+      <a href="index.html">Plugables</a>
+      <span class="breadcrumb-sep">/</span>
+      viewmodel-stub
+    </div>
+
+    <header class="page-header">
+      <h1>viewmodel-stub</h1>
+      <div class="page-badges">
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-platform">Android</span>
+        <span class="badge badge-kotlin">Kotlin</span>
+      </div>
+      <p class="page-lead">
+        Scans your Kotlin source for <code>@ViewModelStub</code>-annotated classes
+        and automatically generates a matching interface and a no-op stub
+        implementation — so you never write preview stubs or test fakes by hand again.
+      </p>
+    </header>
+
+    <!-- ─── Overview ─────────────────────────────────────── -->
+    <section id="overview" class="doc-section">
+      <h2>Overview</h2>
+      <p>
+        ViewModels in Android are hard to test and hard to use in Compose previews because
+        they carry real dependencies. The conventional solution is to extract an interface
+        and maintain a hand-written stub — work that is repetitive and easy to let drift
+        out of sync with the real implementation.
+      </p>
+      <p>
+        <strong>viewmodel-stub</strong> automates this. Annotate your ViewModel
+        implementation class with <code>@ViewModelStub</code>, and the plugin generates
+        two files on every build:
+      </p>
+      <ul>
+        <li>An <strong>interface</strong> exposing the public API surface.</li>
+        <li>A <strong>stub class</strong> implementing that interface with sensible default
+            values for all state properties and no-op method bodies.</li>
+      </ul>
+      <p>
+        The generated stub is ready to drop into a Compose <code>@Preview</code> or a
+        JUnit test without any manual maintenance.
+      </p>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <strong>Interface extraction</strong>
+          <p>Public properties and methods become an interface you can inject against.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Smart defaults</strong>
+          <p><code>StateFlow</code>, <code>LiveData</code>, collections — all get correct default values.</p>
+        </div>
+        <div class="feature-item">
+          <strong>suspend support</strong>
+          <p>Suspend functions are preserved with the correct signature in generated code.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Build integration</strong>
+          <p>Runs before every Kotlin compile. Output is always fresh.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Installation ─────────────────────────────────── -->
+    <section id="installation" class="doc-section">
+      <h2>Installation</h2>
+      <p>Apply the plugin in your Android module's <code>build.gradle.kts</code>:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">plugins</span> <span class="op">{</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.viewmodel-stub"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>No DSL block is required if your Kotlin sources are in the default location
+         (<code>src/main/kotlin</code>). The output directory also has a sensible default.</p>
+
+      <p>To customise either path, add a <code>viewModelStub</code> block:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">viewModelStub</span> <span class="op">{</span>
+    <span class="cm">// Optional — defaults shown</span>
+    <span class="k">sourceDir</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="fn">file</span><span class="op">(</span><span class="st">"src/main/kotlin"</span><span class="op">))</span>
+    <span class="k">outputDir</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="fn">layout</span><span class="op">.</span><span class="fn">buildDirectory</span><span class="op">.</span><span class="fn">dir</span><span class="op">(</span><span class="st">"generated/source/viewModelStubs/main"</span><span class="op">))</span>
+<span class="op">}</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ─── Annotation ───────────────────────────────────── -->
+    <section id="annotation" class="doc-section">
+      <h2>The @ViewModelStub Annotation</h2>
+      <p>
+        The <code>@ViewModelStub</code> annotation is generated by the plugin itself on
+        first run. You do not need to add any dependency to use it — it will appear in
+        the generated sources directory and be available to the compiler automatically.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="cm">// Generated — do not edit</span>
+<span class="op">@</span><span class="fn">Target</span><span class="op">(</span><span class="ty">AnnotationTarget</span><span class="op">.</span><span class="k">CLASS</span><span class="op">)</span>
+<span class="op">@</span><span class="fn">Retention</span><span class="op">(</span><span class="ty">AnnotationRetention</span><span class="op">.</span><span class="k">SOURCE</span><span class="op">)</span>
+<span class="k">annotation class</span> <span class="ty">ViewModelStub</span></code></pre>
+      </div>
+
+      <div class="callout">
+        <p class="callout-title">Naming convention required</p>
+        <p>
+          The annotated class <strong>must</strong> have a name ending in <code>Impl</code>
+          (e.g., <code>HomeViewModelImpl</code>). The plugin derives the interface name by
+          stripping the suffix, and the stub name by replacing it with <code>Stub</code>.
+        </p>
+      </div>
+
+      <h4>Name derivation</h4>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Annotated class</th>
+              <th>Generated interface</th>
+              <th>Generated stub</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>HomeViewModelImpl</code></td>
+              <td><code>HomeViewModel</code></td>
+              <td><code>HomeViewModelStub</code></td>
+            </tr>
+            <tr>
+              <td><code>ProfileViewModelImpl</code></td>
+              <td><code>ProfileViewModel</code></td>
+              <td><code>ProfileViewModelStub</code></td>
+            </tr>
+            <tr>
+              <td><code>SearchViewModelImpl</code></td>
+              <td><code>SearchViewModel</code></td>
+              <td><code>SearchViewModelStub</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── How It Works ─────────────────────────────────── -->
+    <section id="how-it-works" class="doc-section">
+      <h2>How It Works</h2>
+      <p>
+        The plugin registers a single Gradle task, <code>generateViewModelStubs</code>,
+        which runs before any Kotlin compilation. The task performs four steps:
+      </p>
+
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <strong>Scan</strong>
+          <span>*.kt files</span>
+        </div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step">
+          <strong>Parse</strong>
+          <span>@ViewModelStub</span>
+        </div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step">
+          <strong>Analyse</strong>
+          <span>properties &amp; methods</span>
+        </div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step">
+          <strong>Generate</strong>
+          <span>interface + stub</span>
+        </div>
+      </div>
+
+      <p>
+        The parser is regex-based and intentionally lightweight — it does not invoke
+        the Kotlin compiler. It extracts the public API surface of the annotated class:
+        all public <code>val</code>/<code>var</code> properties with explicit type
+        annotations, and all public (including <code>suspend</code>) functions.
+      </p>
+      <p>
+        The output directory is wired into the Android Gradle Plugin's <code>main</code>
+        source set via <code>srcDirs(provider)</code>, making the generated classes
+        available to your code immediately.
+      </p>
+    </section>
+
+    <!-- ─── Configuration ────────────────────────────────── -->
+    <section id="configuration" class="doc-section">
+      <h2>Configuration</h2>
+      <p>The <code>viewModelStub</code> DSL block exposes two properties:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Type</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>sourceDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td><code>src/main/kotlin</code></td>
+              <td>Root directory scanned for <code>*.kt</code> files.</td>
+            </tr>
+            <tr>
+              <td><code>outputDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td><code>build/generated/source/viewModelStubs/main</code></td>
+              <td>Where generated <code>.kt</code> files are written. Automatically added to the AGP <code>main</code> source set.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── Example ──────────────────────────────────────── -->
+    <section id="example" class="doc-section">
+      <h2>Full Example</h2>
+      <p>
+        Here is a complete walkthrough from annotated ViewModel to generated output.
+      </p>
+
+      <h3 id="generated-files">Input ViewModel</h3>
+      <p>
+        Write your ViewModel implementation class as normal. Add
+        <code>@ViewModelStub</code> above the class declaration.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="k">package</span> <span class="ty">com.example.ui.home</span>
+
+<span class="k">import</span> <span class="ty">com.rohittp.plugables.viewmodelstub.ViewModelStub</span>
+<span class="k">import</span> <span class="ty">kotlinx.coroutines.flow.MutableStateFlow</span>
+<span class="k">import</span> <span class="ty">kotlinx.coroutines.flow.StateFlow</span>
+
+<span class="op">@</span><span class="ty">ViewModelStub</span>
+<span class="k">class</span> <span class="ty">HomeViewModelImpl</span> <span class="op">:</span> <span class="ty">ViewModel</span><span class="op">() {</span>
+
+    <span class="k">override val</span> <span class="fn">isLoading</span><span class="op">:</span> <span class="ty">StateFlow</span><span class="op">&lt;</span><span class="ty">Boolean</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ty">MutableStateFlow</span><span class="op">(</span><span class="nm">false</span><span class="op">)</span>
+    <span class="k">override val</span> <span class="fn">errorMessage</span><span class="op">:</span> <span class="ty">String?</span> <span class="op">=</span> <span class="nm">null</span>
+    <span class="k">override val</span> <span class="fn">items</span><span class="op">:</span> <span class="ty">StateFlow</span><span class="op">&lt;</span><span class="ty">List</span><span class="op">&lt;</span><span class="ty">Item</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="ty">MutableStateFlow</span><span class="op">(</span><span class="fn">emptyList</span><span class="op">())</span>
+
+    <span class="k">override fun</span> <span class="fn">loadData</span><span class="op">(</span><span class="fn">userId</span><span class="op">:</span> <span class="ty">String</span><span class="op">) {</span>
+        <span class="cm">/* ... real implementation ... */</span>
+    <span class="op">}</span>
+
+    <span class="k">override suspend fun</span> <span class="fn">refresh</span><span class="op">() {</span>
+        <span class="cm">/* ... real implementation ... */</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <h3 id="generated-interface">Generated Interface</h3>
+      <p>
+        The plugin writes <code>HomeViewModel.kt</code> to the output directory.
+        The interface mirrors every public property and method.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin</span>
+        <pre><code><span class="cm">// GENERATED by GenerateViewModelStubsTask — do not edit.</span>
+<span class="k">package</span> <span class="ty">com.example.ui.home</span>
+
+<span class="k">import</span> <span class="ty">kotlinx.coroutines.flow.StateFlow</span>
+
+<span class="k">interface</span> <span class="ty">HomeViewModel</span> <span class="op">{</span>
+    <span class="k">val</span> <span class="fn">isLoading</span><span class="op">:</span> <span class="ty">StateFlow</span><span class="op">&lt;</span><span class="ty">Boolean</span><span class="op">&gt;</span>
+    <span class="k">val</span> <span class="fn">errorMessage</span><span class="op">:</span> <span class="ty">String?</span>
+    <span class="k">val</span> <span class="fn">items</span><span class="op">:</span> <span class="ty">StateFlow</span><span class="op">&lt;</span><span class="ty">List</span><span class="op">&lt;</span><span class="ty">Item</span><span class="op">&gt;&gt;</span>
+
+    <span class="k">fun</span> <span class="fn">loadData</span><span class="op">(</span>
+        <span class="fn">userId</span><span class="op">:</span> <span class="ty">String</span>
+    <span class="op">)</span>
+    <span class="k">suspend fun</span> <span class="fn">refresh</span><span class="op">()</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <h3 id="generated-stub">Generated Stub</h3>
+      <p>
+        The plugin also writes <code>HomeViewModelStub.kt</code>. Every property has a
+        sensible default; every method has a no-op body (or returns a default value).
+        The stub is immediately usable in previews and tests.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin</span>
+        <pre><code><span class="cm">// GENERATED by GenerateViewModelStubsTask — do not edit.</span>
+<span class="k">package</span> <span class="ty">com.example.ui.home</span>
+
+<span class="k">import</span> <span class="ty">kotlinx.coroutines.flow.MutableStateFlow</span>
+<span class="k">import</span> <span class="ty">kotlinx.coroutines.flow.StateFlow</span>
+
+<span class="k">class</span> <span class="ty">HomeViewModelStub</span><span class="op">(</span>
+    <span class="k">override val</span> <span class="fn">isLoading</span><span class="op">:</span> <span class="ty">StateFlow</span><span class="op">&lt;</span><span class="ty">Boolean</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ty">MutableStateFlow</span><span class="op">(</span><span class="nm">false</span><span class="op">),</span>
+    <span class="k">override val</span> <span class="fn">errorMessage</span><span class="op">:</span> <span class="ty">String?</span> <span class="op">=</span> <span class="nm">null</span><span class="op">,</span>
+    <span class="k">override val</span> <span class="fn">items</span><span class="op">:</span> <span class="ty">StateFlow</span><span class="op">&lt;</span><span class="ty">List</span><span class="op">&lt;</span><span class="ty">Item</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="ty">MutableStateFlow</span><span class="op">(</span><span class="fn">emptyList</span><span class="op">()),</span>
+<span class="op">) :</span> <span class="ty">HomeViewModel</span> <span class="op">{</span>
+    <span class="k">override fun</span> <span class="fn">loadData</span><span class="op">(</span><span class="fn">userId</span><span class="op">:</span> <span class="ty">String</span><span class="op">) {}</span>
+    <span class="k">override suspend fun</span> <span class="fn">refresh</span><span class="op">() {}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <h4>Using the stub in a Compose preview</h4>
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="op">@</span><span class="ty">Preview</span>
+<span class="op">@</span><span class="ty">Composable</span>
+<span class="k">fun</span> <span class="fn">HomeScreenPreview</span><span class="op">() {</span>
+    <span class="fn">HomeScreen</span><span class="op">(</span><span class="fn">viewModel</span> <span class="op">=</span> <span class="ty">HomeViewModelStub</span><span class="op">())</span>
+<span class="op">}</span>
+
+<span class="cm">// Or customise the stub for a specific preview state</span>
+<span class="op">@</span><span class="ty">Preview</span>
+<span class="op">@</span><span class="ty">Composable</span>
+<span class="k">fun</span> <span class="fn">HomeScreenLoadingPreview</span><span class="op">() {</span>
+    <span class="fn">HomeScreen</span><span class="op">(</span>
+        <span class="fn">viewModel</span> <span class="op">=</span> <span class="ty">HomeViewModelStub</span><span class="op">(</span>
+            <span class="fn">isLoading</span> <span class="op">=</span> <span class="ty">MutableStateFlow</span><span class="op">(</span><span class="nm">true</span><span class="op">),</span>
+        <span class="op">)</span>
+    <span class="op">)</span>
+<span class="op">}</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ─── Parser Behavior ───────────────────────────────── -->
+    <section id="parser-behavior" class="doc-section">
+      <h2>Parser Behavior</h2>
+      <p>
+        The parser is intentionally simple and regex-based — it does not
+        resolve types or run the Kotlin compiler. Understanding its
+        scope helps you use the plugin effectively.
+      </p>
+
+      <h3>What is extracted</h3>
+      <ul>
+        <li>All <code>public</code> (and package-private) <code>val</code> / <code>var</code> properties
+            <strong>with an explicit type annotation</strong>.</li>
+        <li>All <code>public</code> and <code>suspend</code> functions at the class body level.</li>
+        <li>Package declaration and all import statements (for use in generated files).</li>
+      </ul>
+
+      <h3>What is skipped</h3>
+      <ul>
+        <li><code>private</code>, <code>protected</code>, and <code>internal</code> members.</li>
+        <li>Properties without an explicit type (e.g., <code>val x = 42</code> — no type).</li>
+        <li>Companion objects, <code>init</code> blocks, nested classes, inner classes.</li>
+        <li>Members at depth &gt; 1 (nested in lambdas, inner blocks, etc.).</li>
+      </ul>
+
+      <div class="callout">
+        <p class="callout-title">Limitation</p>
+        <p>
+          Because the parser does not resolve types, it copies import statements
+          verbatim. If a type used in the ViewModel is not imported (e.g., it is
+          in the same package), the generated files will compile fine. If a type is
+          imported but unused after extraction, the Kotlin compiler will issue a warning.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── Type Defaults ────────────────────────────────── -->
+    <section id="type-defaults" class="doc-section">
+      <h2>Type Defaults</h2>
+      <p>
+        The stub generator maps each property type to a default value expression.
+        The following table shows the built-in mappings:
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Default expression</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>T?</code></td><td><code>null</code></td></tr>
+            <tr><td><code>Boolean</code></td><td><code>false</code></td></tr>
+            <tr><td><code>Int</code></td><td><code>0</code></td></tr>
+            <tr><td><code>Long</code></td><td><code>0L</code></td></tr>
+            <tr><td><code>Float</code></td><td><code>0f</code></td></tr>
+            <tr><td><code>Double</code></td><td><code>0.0</code></td></tr>
+            <tr><td><code>String</code></td><td><code>""</code></td></tr>
+            <tr><td><code>StateFlow&lt;T&gt;</code></td><td><code>MutableStateFlow(&lt;default for T&gt;)</code></td></tr>
+            <tr><td><code>MutableStateFlow&lt;T&gt;</code></td><td><code>MutableStateFlow(&lt;default for T&gt;)</code></td></tr>
+            <tr><td><code>SharedFlow&lt;T&gt;</code></td><td><code>MutableSharedFlow()</code></td></tr>
+            <tr><td><code>LiveData&lt;T&gt;</code></td><td><code>MutableLiveData(&lt;default for T&gt;)</code></td></tr>
+            <tr><td><code>List&lt;T&gt;</code></td><td><code>emptyList()</code></td></tr>
+            <tr><td><code>Map&lt;K, V&gt;</code></td><td><code>emptyMap()</code></td></tr>
+            <tr><td><code>Set&lt;T&gt;</code></td><td><code>emptySet()</code></td></tr>
+            <tr><td><code>CoroutineScope</code></td><td><code>CoroutineScope(SupervisorJob())</code></td></tr>
+            <tr><td><code>IntRange</code></td><td><code>0..0</code></td></tr>
+            <tr><td><code>ClosedFloatingPointRange&lt;T&gt;</code></td><td><code>0f..1f</code></td></tr>
+            <tr><td><em>anything else</em></td><td><code>TODO("Provide default for T")</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        For types that fall through to <code>TODO()</code>, the stub will still compile
+        but will throw a <code>NotImplementedError</code> if that property is accessed
+        during a test or preview. Replace it by providing the value via the constructor
+        parameter.
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<!-- ─── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index.html" class="footer-brand">Plugables</a>
+    <span class="footer-meta">com.rohittp.plugables.viewmodel-stub · v1.0.0</span>
+    <div class="footer-links">
+      <a href="https://github.com/rohittp0/plugables/tree/main/viewmodel-stub" target="_blank" rel="noopener">Source</a>
+      <a href="index.html">← All plugins</a>
+      <a href="typed-events.html">typed-events →</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>typed-events — Plugables</title>
+  <meta name="description" content="Generate a typed AnalyticsBase class from a YAML event schema. Override one method to connect any analytics backend." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ─── Navigation ─────────────────────────────────────────── -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">Plugables</a>
+    <div class="nav-links">
+      <a href="viewmodel-stub.html">viewmodel-stub</a>
+      <a href="typed-events.html">typed-events</a>
+      <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- ─── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <nav class="toc">
+      <p class="toc-title">On this page</p>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#yaml-schema">YAML Schema</a></li>
+        <li><a href="#full-form" class="toc-h3">Full form</a></li>
+        <li><a href="#shorthand" class="toc-h3">Shorthand form</a></li>
+        <li><a href="#yaml-rules" class="toc-h3">Validation rules</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#generated-class">Generated Class</a></li>
+        <li><a href="#usage">Usage</a></li>
+        <li><a href="#integrations">Integrations</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ─── Content ──────────────────────────────────────────── -->
+  <main class="content">
+
+    <div class="breadcrumb">
+      <a href="index.html">Plugables</a>
+      <span class="breadcrumb-sep">/</span>
+      typed-events
+    </div>
+
+    <header class="page-header">
+      <h1>typed-events</h1>
+      <div class="page-badges">
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-platform">Android</span>
+        <span class="badge badge-kotlin">Kotlin</span>
+      </div>
+      <p class="page-lead">
+        Define your analytics event schema in a YAML file and get a fully-typed
+        <code>AnalyticsBase</code> Kotlin class generated at build time. Override
+        a single <code>logEvent</code> method to connect any analytics backend —
+        Firebase, Mixpanel, Amplitude, or your own.
+      </p>
+    </header>
+
+    <!-- ─── Overview ─────────────────────────────────────── -->
+    <section id="overview" class="doc-section">
+      <h2>Overview</h2>
+      <p>
+        Analytics implementations suffer from a common problem: event names and
+        parameter keys are stringly-typed, scattered across the codebase, and
+        easy to misspell. The schema lives in someone's head or a Google Sheet —
+        not enforced by the compiler.
+      </p>
+      <p>
+        <strong>typed-events</strong> solves this by making your schema the source
+        of truth. You write a YAML file that describes every event — its name, a
+        description, and typed parameters. The plugin generates an abstract
+        <code>AnalyticsBase</code> class with one properly-typed Kotlin method per
+        event. Your implementation subclasses it and overrides the single protected
+        <code>logEvent</code> hook.
+      </p>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <strong>Typed parameters</strong>
+          <p>All parameters are real Kotlin types — compiler errors instead of runtime crashes.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Single override point</strong>
+          <p>One <code>logEvent</code> method to implement. Works with any backend.</p>
+        </div>
+        <div class="feature-item">
+          <strong>KDoc generated</strong>
+          <p>Every method and parameter gets a doc comment from the YAML <code>info</code> fields.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Schema as source of truth</strong>
+          <p>The YAML lives in version control alongside the code it drives.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Installation ─────────────────────────────────── -->
+    <section id="installation" class="doc-section">
+      <h2>Installation</h2>
+      <p>Apply the plugin and point it at your schema file:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">plugins</span> <span class="op">{</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.typed-events"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+<span class="op">}</span>
+
+<span class="fn">typedEvents</span> <span class="op">{</span>
+    <span class="k">specFile</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="fn">file</span><span class="op">(</span><span class="st">"src/main/analytics/events.yaml"</span><span class="op">))</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        <code>specFile</code> is the only required property. Everything else has
+        a sensible default.
+      </p>
+
+      <div class="callout tip">
+        <p class="callout-title">Recommended location</p>
+        <p>
+          Place your schema at <code>src/main/analytics/events.yaml</code>.
+          Keeping it under <code>src/main</code> means it lives alongside the
+          code it describes and participates in standard VCS workflows.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── YAML Schema ───────────────────────────────────── -->
+    <section id="yaml-schema" class="doc-section">
+      <h2>YAML Schema</h2>
+      <p>
+        The schema is a YAML list where each item defines one analytics event.
+        Two forms are supported: a verbose full form for events with parameters,
+        and a one-line shorthand for parameter-less events.
+      </p>
+
+      <h3 id="full-form">Full form</h3>
+      <p>Use the full form when an event carries parameters.</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">events.yaml</span>
+        <pre><code><span class="yc"># Full form — use when the event has parameters</span>
+<span class="op">-</span> <span class="yk">purchase_completed</span><span class="op">:</span>
+    <span class="yk">info</span><span class="op">:</span> <span class="yv">User completed a purchase flow</span>
+    <span class="yk">function</span><span class="op">:</span> <span class="yv">logPurchaseCompleted</span>  <span class="yc"># optional — auto-derived if omitted</span>
+    <span class="yk">params</span><span class="op">:</span>
+      <span class="yk">item_id</span><span class="op">:</span>
+        <span class="yk">type</span><span class="op">:</span> <span class="yv">String</span>
+        <span class="yk">info</span><span class="op">:</span> <span class="yv">Unique identifier of the purchased item</span>
+      <span class="yk">price</span><span class="op">:</span>
+        <span class="yk">type</span><span class="op">:</span> <span class="yv">Double</span>
+        <span class="yk">info</span><span class="op">:</span> <span class="yv">Final price paid after discounts, in the user's currency</span>
+      <span class="yk">currency</span><span class="op">:</span>
+        <span class="yk">type</span><span class="op">:</span> <span class="yv">String</span>
+        <span class="yk">info</span><span class="op">:</span> <span class="yv">ISO 4217 currency code (e.g. USD, EUR)</span></code></pre>
+      </div>
+
+      <h4>Full form fields</h4>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Required</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>info</code></td>
+              <td>Yes</td>
+              <td>Human-readable description of the event. Becomes the KDoc comment on the generated method.</td>
+            </tr>
+            <tr>
+              <td><code>function</code></td>
+              <td>No</td>
+              <td>
+                Override the generated method name. If omitted, the name is derived from
+                <code>event_name</code> by camel-casing with a <code>log</code> prefix —
+                e.g., <code>purchase_completed</code> → <code>logPurchaseCompleted</code>.
+              </td>
+            </tr>
+            <tr>
+              <td><code>params</code></td>
+              <td>No</td>
+              <td>Map of parameter definitions. Omit entirely for parameter-less events.</td>
+            </tr>
+            <tr>
+              <td><code>params.*.type</code></td>
+              <td>Yes (per param)</td>
+              <td>Any valid Kotlin type string, e.g. <code>String</code>, <code>Double</code>, <code>Boolean</code>, <code>String?</code>.</td>
+            </tr>
+            <tr>
+              <td><code>params.*.info</code></td>
+              <td>Yes (per param)</td>
+              <td>Description of the parameter. Becomes a <code>@param</code> KDoc entry.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="shorthand">Shorthand form</h3>
+      <p>
+        For parameter-less events, collapse the definition to a single line.
+        The value is the event description (the <code>info</code> field).
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">events.yaml</span>
+        <pre><code><span class="yc"># Shorthand — event name: description</span>
+<span class="op">-</span> <span class="yk">screen_viewed</span><span class="op">:</span>    <span class="yv">User navigated to a new screen</span>
+<span class="op">-</span> <span class="yk">app_opened</span><span class="op">:</span>      <span class="yv">App launched or foregrounded</span>
+<span class="op">-</span> <span class="yk">logout_tapped</span><span class="op">:</span>   <span class="yv">User tapped the logout button</span></code></pre>
+      </div>
+
+      <h3 id="yaml-rules">Validation rules</h3>
+      <p>
+        The task validates the schema before generating. Build fails with a clear
+        message if any rule is violated:
+      </p>
+      <ul>
+        <li><code>info</code> must be present and non-blank on every event and every parameter.</li>
+        <li>Event names must be unique within the file.</li>
+        <li>Function names (derived or explicit) must be unique within the file.</li>
+        <li>Each <code>params</code> entry must have both <code>type</code> and <code>info</code>.</li>
+        <li>Derived function names must be valid Kotlin identifiers.</li>
+      </ul>
+
+      <h4>Parameter name derivation</h4>
+      <p>
+        YAML parameter keys are converted to camelCase Kotlin identifiers by splitting
+        on non-alphanumeric characters, lowercasing the first segment, and title-casing
+        the rest. A leading digit causes a <code>_</code> prefix.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>YAML key</th><th>Kotlin parameter name</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>item_id</code></td><td><code>itemId</code></td></tr>
+            <tr><td><code>screen_name</code></td><td><code>screenName</code></td></tr>
+            <tr><td><code>price</code></td><td><code>price</code></td></tr>
+            <tr><td><code>2fa_enabled</code></td><td><code>_2faEnabled</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── Configuration ────────────────────────────────── -->
+    <section id="configuration" class="doc-section">
+      <h2>Configuration</h2>
+      <p>The <code>typedEvents</code> DSL block exposes two properties:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Type</th>
+              <th>Required</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>specFile</code></td>
+              <td><code>RegularFileProperty</code></td>
+              <td>Yes</td>
+              <td>—</td>
+              <td>Path to the YAML schema file. Build fails if unset or file not found.</td>
+            </tr>
+            <tr>
+              <td><code>outputDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td>No</td>
+              <td><code>build/generated/source/typedEvents/main</code></td>
+              <td>Where <code>AnalyticsBase.kt</code> is written. Automatically wired into the AGP <code>main</code> source set.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        The generated class is always placed in the package
+        <code>com.rohittp.plugables.analytics</code> and named <code>AnalyticsBase</code>
+        — these are fixed and not configurable.
+      </p>
+    </section>
+
+    <!-- ─── Generated Class ──────────────────────────────── -->
+    <section id="generated-class" class="doc-section">
+      <h2>Generated Class</h2>
+      <p>
+        Given the following schema combining both full and shorthand forms:
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">events.yaml</span>
+        <pre><code><span class="op">-</span> <span class="yk">purchase_completed</span><span class="op">:</span>
+    <span class="yk">info</span><span class="op">:</span> <span class="yv">User completed a purchase</span>
+    <span class="yk">params</span><span class="op">:</span>
+      <span class="yk">item_id</span><span class="op">:</span>
+        <span class="yk">type</span><span class="op">:</span> <span class="yv">String</span>
+        <span class="yk">info</span><span class="op">:</span> <span class="yv">The purchased item ID</span>
+      <span class="yk">price</span><span class="op">:</span>
+        <span class="yk">type</span><span class="op">:</span> <span class="yv">Double</span>
+        <span class="yk">info</span><span class="op">:</span> <span class="yv">Final price paid</span>
+<span class="op">-</span> <span class="yk">screen_viewed</span><span class="op">:</span> <span class="yv">User viewed a screen</span></code></pre>
+      </div>
+
+      <p>The plugin generates:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin</span>
+        <pre><code><span class="k">package</span> <span class="ty">com.rohittp.plugables.analytics</span>
+
+<span class="cm">// GENERATED FILE. Do not edit.</span>
+<span class="cm">// Source: events.yaml</span>
+
+<span class="k">abstract class</span> <span class="ty">AnalyticsBase</span> <span class="op">{</span>
+
+    <span class="k">protected open fun</span> <span class="fn">logEvent</span><span class="op">(</span><span class="fn">eventName</span><span class="op">:</span> <span class="ty">String</span><span class="op">,</span> <span class="fn">params</span><span class="op">:</span> <span class="ty">Map</span><span class="op">&lt;</span><span class="ty">String</span><span class="op">,</span> <span class="ty">Any?</span><span class="op">&gt;)</span> <span class="op">=</span> <span class="ty">Unit</span>
+
+    <span class="cm">/**
+     * User completed a purchase
+     * @param itemId The purchased item ID
+     * @param price Final price paid
+     */</span>
+    <span class="k">fun</span> <span class="fn">logPurchaseCompleted</span><span class="op">(</span><span class="fn">itemId</span><span class="op">:</span> <span class="ty">String</span><span class="op">,</span> <span class="fn">price</span><span class="op">:</span> <span class="ty">Double</span><span class="op">) {</span>
+        <span class="fn">logEvent</span><span class="op">(</span><span class="st">"purchase_completed"</span><span class="op">,</span> <span class="fn">mapOf</span><span class="op">(</span><span class="st">"item_id"</span> <span class="k">to</span> <span class="fn">itemId</span><span class="op">,</span> <span class="st">"price"</span> <span class="k">to</span> <span class="fn">price</span><span class="op">))</span>
+    <span class="op">}</span>
+
+    <span class="cm">/** User viewed a screen */</span>
+    <span class="k">fun</span> <span class="fn">logScreenViewed</span><span class="op">() {</span>
+        <span class="fn">logEvent</span><span class="op">(</span><span class="st">"screen_viewed"</span><span class="op">,</span> <span class="fn">emptyMap</span><span class="op">())</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        The <code>logEvent</code> method has a default no-op body (<code>= Unit</code>),
+        so the class compiles and is safe to instantiate in tests even before you
+        override it.
+      </p>
+    </section>
+
+    <!-- ─── Usage ────────────────────────────────────────── -->
+    <section id="usage" class="doc-section">
+      <h2>Usage</h2>
+      <p>
+        Create a concrete subclass of <code>AnalyticsBase</code> in your own package.
+        Override <code>logEvent</code> to forward to your analytics backend.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="k">import</span> <span class="ty">com.rohittp.plugables.analytics.AnalyticsBase</span>
+
+<span class="k">class</span> <span class="ty">AppAnalytics</span> <span class="op">:</span> <span class="ty">AnalyticsBase</span><span class="op">() {</span>
+
+    <span class="k">override fun</span> <span class="fn">logEvent</span><span class="op">(</span><span class="fn">eventName</span><span class="op">:</span> <span class="ty">String</span><span class="op">,</span> <span class="fn">params</span><span class="op">:</span> <span class="ty">Map</span><span class="op">&lt;</span><span class="ty">String</span><span class="op">,</span> <span class="ty">Any?</span><span class="op">&gt;) {</span>
+        <span class="cm">// forward to your backend here</span>
+    <span class="op">}</span>
+<span class="op">}</span>
+
+<span class="cm">// Calling a typed method — full IDE autocomplete, compiler-checked types</span>
+<span class="fn">analytics</span><span class="op">.</span><span class="fn">logPurchaseCompleted</span><span class="op">(</span>
+    <span class="fn">itemId</span> <span class="op">=</span> <span class="st">"sku_abc123"</span><span class="op">,</span>
+    <span class="fn">price</span>  <span class="op">=</span> <span class="nm">9.99</span>
+<span class="op">)</span>
+
+<span class="fn">analytics</span><span class="op">.</span><span class="fn">logScreenViewed</span><span class="op">()</span></code></pre>
+      </div>
+
+      <div class="callout tip">
+        <p class="callout-title">Dependency injection</p>
+        <p>
+          Inject <code>AnalyticsBase</code> as the type — not <code>AppAnalytics</code>.
+          This lets you swap in a no-op or logging-only implementation during development
+          and tests without changing call sites.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── Integrations ─────────────────────────────────── -->
+    <section id="integrations" class="doc-section">
+      <h2>Integrations</h2>
+      <p>
+        Because <code>logEvent</code> receives a plain <code>String</code> event name
+        and a <code>Map&lt;String, Any?&gt;</code>, it is trivial to bridge to any SDK.
+      </p>
+
+      <h3>Firebase Analytics</h3>
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="k">class</span> <span class="ty">FirebaseAnalytics</span><span class="op">(</span>
+    <span class="k">private val</span> <span class="fn">firebase</span><span class="op">:</span> <span class="ty">com.google.firebase.analytics.FirebaseAnalytics</span>
+<span class="op">) :</span> <span class="ty">AnalyticsBase</span><span class="op">() {</span>
+
+    <span class="k">override fun</span> <span class="fn">logEvent</span><span class="op">(</span><span class="fn">eventName</span><span class="op">:</span> <span class="ty">String</span><span class="op">,</span> <span class="fn">params</span><span class="op">:</span> <span class="ty">Map</span><span class="op">&lt;</span><span class="ty">String</span><span class="op">,</span> <span class="ty">Any?</span><span class="op">&gt;) {</span>
+        <span class="k">val</span> <span class="fn">bundle</span> <span class="op">=</span> <span class="ty">Bundle</span><span class="op">().</span><span class="fn">apply</span> <span class="op">{</span>
+            <span class="fn">params</span><span class="op">.</span><span class="fn">forEach</span> <span class="op">{ (</span><span class="fn">key</span><span class="op">,</span> <span class="fn">value</span><span class="op">) -&gt;</span>
+                <span class="k">when</span> <span class="op">(</span><span class="fn">value</span><span class="op">) {</span>
+                    <span class="k">is</span> <span class="ty">String</span>  <span class="op">-&gt;</span> <span class="fn">putString</span><span class="op">(</span><span class="fn">key</span><span class="op">,</span> <span class="fn">value</span><span class="op">)</span>
+                    <span class="k">is</span> <span class="ty">Double</span>  <span class="op">-&gt;</span> <span class="fn">putDouble</span><span class="op">(</span><span class="fn">key</span><span class="op">,</span> <span class="fn">value</span><span class="op">)</span>
+                    <span class="k">is</span> <span class="ty">Int</span>     <span class="op">-&gt;</span> <span class="fn">putInt</span><span class="op">(</span><span class="fn">key</span><span class="op">,</span> <span class="fn">value</span><span class="op">)</span>
+                    <span class="k">is</span> <span class="ty">Boolean</span> <span class="op">-&gt;</span> <span class="fn">putBoolean</span><span class="op">(</span><span class="fn">key</span><span class="op">,</span> <span class="fn">value</span><span class="op">)</span>
+                    <span class="nm">null</span>       <span class="op">-&gt;</span> <span class="op">{}</span>
+                    <span class="k">else</span>       <span class="op">-&gt;</span> <span class="fn">putString</span><span class="op">(</span><span class="fn">key</span><span class="op">,</span> <span class="fn">value</span><span class="op">.</span><span class="fn">toString</span><span class="op">())</span>
+                <span class="op">}</span>
+            <span class="op">}</span>
+        <span class="op">}</span>
+        <span class="fn">firebase</span><span class="op">.</span><span class="fn">logEvent</span><span class="op">(</span><span class="fn">eventName</span><span class="op">,</span> <span class="fn">bundle</span><span class="op">)</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <h3>Mixpanel</h3>
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="k">class</span> <span class="ty">MixpanelAnalytics</span><span class="op">(</span>
+    <span class="k">private val</span> <span class="fn">mixpanel</span><span class="op">:</span> <span class="ty">MixpanelAPI</span>
+<span class="op">) :</span> <span class="ty">AnalyticsBase</span><span class="op">() {</span>
+
+    <span class="k">override fun</span> <span class="fn">logEvent</span><span class="op">(</span><span class="fn">eventName</span><span class="op">:</span> <span class="ty">String</span><span class="op">,</span> <span class="fn">params</span><span class="op">:</span> <span class="ty">Map</span><span class="op">&lt;</span><span class="ty">String</span><span class="op">,</span> <span class="ty">Any?</span><span class="op">&gt;) {</span>
+        <span class="k">val</span> <span class="fn">props</span> <span class="op">=</span> <span class="ty">JSONObject</span><span class="op">(</span><span class="fn">params</span><span class="op">.</span><span class="fn">filterValues</span> <span class="op">{ </span><span class="fn">it</span> <span class="op">!=</span> <span class="nm">null</span> <span class="op">})</span>
+        <span class="fn">mixpanel</span><span class="op">.</span><span class="fn">track</span><span class="op">(</span><span class="fn">eventName</span><span class="op">,</span> <span class="fn">props</span><span class="op">)</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <h3>No-op (testing / development)</h3>
+      <p>
+        The base class <code>logEvent</code> is already a no-op by default (<code>= Unit</code>),
+        so you can instantiate <code>AnalyticsBase</code> directly in tests — but creating
+        an explicit no-op makes intent clear and keeps production code free of flag checks.
+      </p>
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="k">class</span> <span class="ty">NoOpAnalytics</span> <span class="op">:</span> <span class="ty">AnalyticsBase</span><span class="op">() {</span>
+    <span class="cm">// logEvent default is already Unit — nothing to override</span>
+<span class="op">}</span>
+
+<span class="cm">// Or a logging implementation for debug builds</span>
+<span class="k">class</span> <span class="ty">LoggingAnalytics</span> <span class="op">:</span> <span class="ty">AnalyticsBase</span><span class="op">() {</span>
+    <span class="k">override fun</span> <span class="fn">logEvent</span><span class="op">(</span><span class="fn">eventName</span><span class="op">:</span> <span class="ty">String</span><span class="op">,</span> <span class="fn">params</span><span class="op">:</span> <span class="ty">Map</span><span class="op">&lt;</span><span class="ty">String</span><span class="op">,</span> <span class="ty">Any?</span><span class="op">&gt;) {</span>
+        <span class="ty">Log</span><span class="op">.</span><span class="fn">d</span><span class="op">(</span><span class="st">"Analytics"</span><span class="op">,</span> <span class="st">"$</span><span class="op">{</span><span class="fn">eventName</span><span class="op">}</span><span class="st"> $</span><span class="op">{</span><span class="fn">params</span><span class="op">}</span><span class="st">"</span><span class="op">)</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ─── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index.html" class="footer-brand">Plugables</a>
+    <span class="footer-meta">com.rohittp.plugables.typed-events · v1.0.0</span>
+    <div class="footer-links">
+      <a href="https://github.com/rohittp0/plugables/tree/main/typed-events" target="_blank" rel="noopener">Source</a>
+      <a href="viewmodel-stub.html">← viewmodel-stub</a>
+      <a href="index.html">All plugins</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
