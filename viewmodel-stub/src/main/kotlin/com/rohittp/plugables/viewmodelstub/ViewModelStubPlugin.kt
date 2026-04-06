@@ -19,21 +19,20 @@ class ViewModelStubPlugin : Plugin<Project> {
             }
         )
 
-        project.afterEvaluate {
-            val android = project.extensions.findByName("android") as? BaseExtension
-            if (android == null) {
-                project.logger.warn(
-                    "[viewmodel-stub] Android plugin not found in project '${project.name}'. " +
-                    "This plugin targets Android Kotlin projects only — source set wiring skipped."
-                )
-            } else {
-                // Pass the Provider<Directory> directly — defers resolution and is configuration-cache safe
-                android.sourceSets.getByName("main").java.srcDirs(ext.outputDir)
-            }
+        // Wire before any Kotlin compile task — lazy, no afterEvaluate needed
+        project.tasks.matching { t -> t.name.matches(Regex("compile.*Kotlin")) }
+            .configureEach(Action { dependsOn(generateTask) })
 
-            // Ensure generation runs before any Kotlin compilation task
-            project.tasks.matching { t -> t.name.matches(Regex("compile.*Kotlin")) }
-                .configureEach(Action { dependsOn(generateTask) })
+        // Wire Android source set when the Android plugin is applied
+        // Using plugins.withId is configuration-cache safe (unlike afterEvaluate)
+        val configureAndroid: (BaseExtension) -> Unit = { android ->
+            android.sourceSets.getByName("main").java.srcDirs(ext.outputDir)
+        }
+        project.plugins.withId("com.android.application") {
+            configureAndroid(project.extensions.getByType(BaseExtension::class.java))
+        }
+        project.plugins.withId("com.android.library") {
+            configureAndroid(project.extensions.getByType(BaseExtension::class.java))
         }
     }
 }

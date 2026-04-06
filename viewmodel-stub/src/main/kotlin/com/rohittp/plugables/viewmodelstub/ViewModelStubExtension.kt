@@ -10,7 +10,7 @@ abstract class ViewModelStubExtension @Inject constructor(layout: ProjectLayout)
     abstract val outputDir: DirectoryProperty
 
     init {
-        sourceDir.convention(layout.projectDirectory.dir("src/main/java"))
+        sourceDir.convention(layout.projectDirectory.dir("src/main/kotlin"))
         outputDir.convention(layout.buildDirectory.dir("generated/source/viewModelStubs/main"))
     }
 }
