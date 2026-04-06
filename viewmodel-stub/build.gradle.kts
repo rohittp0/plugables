@@ -25,7 +25,7 @@ dependencies {
 }
 
 gradlePlugin {
-    website = "https://github.com/rohittp0/plugables"
+    website = "https://rohittp.com/plugables"
     vcsUrl = "https://github.com/rohittp0/plugables.git"
 
     plugins {
