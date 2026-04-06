@@ -1,9 +1,10 @@
 package com.rohittp.plugables.viewmodelstub
 
-import com.android.build.gradle.BaseExtension
+import com.android.build.api.variant.AndroidComponentsExtension
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.TaskProvider
 
 class ViewModelStubPlugin : Plugin<Project> {
 
@@ -23,16 +24,23 @@ class ViewModelStubPlugin : Plugin<Project> {
         project.tasks.matching { t -> t.name.matches(Regex("compile.*Kotlin")) }
             .configureEach(Action { dependsOn(generateTask) })
 
-        // Wire Android source set when the Android plugin is applied
-        // Using plugins.withId is configuration-cache safe (unlike afterEvaluate)
-        val configureAndroid: (BaseExtension) -> Unit = { android ->
-            android.sourceSets.getByName("main").java.srcDirs(ext.outputDir)
-        }
+        // Wire Android generated sources using the Variant API (AGP 7.2+)
+        // plugins.withId fires immediately if the plugin is already applied
         project.plugins.withId("com.android.application") {
-            configureAndroid(project.extensions.getByType(BaseExtension::class.java))
+            wireAndroidSources(project, generateTask)
         }
         project.plugins.withId("com.android.library") {
-            configureAndroid(project.extensions.getByType(BaseExtension::class.java))
+            wireAndroidSources(project, generateTask)
+        }
+    }
+
+    private fun wireAndroidSources(project: Project, generateTask: TaskProvider<GenerateViewModelStubsTask>) {
+        val androidComponents = project.extensions.getByType(
+            AndroidComponentsExtension::class.java
+        )
+        androidComponents.onVariants { variant ->
+            variant.sources.java?.addGeneratedSourceDirectory(generateTask, GenerateViewModelStubsTask::outputDir)
+            variant.sources.kotlin?.addGeneratedSourceDirectory(generateTask, GenerateViewModelStubsTask::outputDir)
         }
     }
 }
