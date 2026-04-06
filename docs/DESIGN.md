@@ -238,12 +238,76 @@ Use `.toc-h3` class for subsection links (adds left indent).
 
 ---
 
+## SEO Standards
+
+Every page **must** include the following in `<head>`, filled in for that page.
+
+### Required meta tags
+
+```html
+<!-- Description: 120–160 characters, keyword-rich, benefit-led -->
+<meta name="description" content="…" />
+
+<!-- Canonical: absolute URL, no trailing slash for .html pages -->
+<link rel="canonical" href="https://rohittp.com/plugables/[page].html" />
+
+<!-- Favicon -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+
+<!-- Open Graph (og:type is "website" for index, "article" for doc pages) -->
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="Plugables" />
+<meta property="og:title" content="[Page title]" />
+<meta property="og:description" content="[Same as meta description]" />
+<meta property="og:url" content="https://rohittp.com/plugables/[page].html" />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="[Page title]" />
+<meta name="twitter:description" content="[Same as meta description]" />
+```
+
+### Title tag
+
+- **Homepage**: `Site Name — Short Tagline` (50–60 chars)
+- **Plugin pages**: `plugin-name Gradle Plugin — Plugables` (include "Gradle Plugin" as keyword)
+- Never exceed 60 characters (truncated in SERPs)
+
+### Meta description
+
+- 120–160 characters (shorter is truncated, longer is cut off)
+- Lead with the user benefit, not the mechanism
+- Include 2–3 relevant keywords naturally (plugin name, platform, use case)
+
+### Heading hierarchy
+
+- Never skip levels: `h2` → `h3` → `h4` (never `h2` → `h4` directly)
+- Each page has exactly one `h1`
+- Section labels/eyebrows use `h4` styled as small-caps, **not** in the semantic outline
+
+### External links
+
+Always use `rel="noopener noreferrer"` on every `target="_blank"` link — never just `noopener` alone.
+
+```html
+<a href="…" target="_blank" rel="noopener noreferrer">…</a>
+```
+
+### Sitemap and robots
+
+- `sitemap.xml` lists every page with its canonical URL
+- `robots.txt` allows all crawlers and references the sitemap
+- Update `sitemap.xml` whenever a new page is added
+
+---
+
 ## Adding a New Plugin Page
 
 1. Copy `typed-events.html` as a starting template.
-2. Update `<title>`, meta description, breadcrumb, and `<h1>`.
+2. Update `<title>`, meta description, canonical, OG tags, Twitter tags, and `<h1>` (see **SEO Standards** above).
 3. Populate the TOC sidebar with the page's actual section IDs.
 4. Fill in sections: Overview, Installation, Configuration, Example, (optional) Advanced.
 5. Use the same `doc-section` + anchor pattern for all sections.
 6. Add the plugin to the `plugin-grid` in `index.html`.
 7. Link to the new page from the nav in all existing pages.
+8. Add the new URL to `sitemap.xml`.
