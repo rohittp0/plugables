@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     `kotlin-dsl`
-    `maven-publish`
+    id("com.gradle.plugin-publish") version "1.3.0"
 }
 
 group = "com.rohittp.plugables"
@@ -25,9 +25,15 @@ dependencies {
 }
 
 gradlePlugin {
+    website = "https://github.com/rohittp0/plugables"
+    vcsUrl = "https://github.com/rohittp0/plugables.git"
+
     plugins {
         create("viewModelStub") {
             id = "com.rohittp.plugables.viewmodel-stub"
+            displayName = "ViewModelStub"
+            description = "Generates interface + preview-safe stub classes from Android ViewModels annotated with @ViewModelStub."
+            tags = listOf("android", "kotlin", "viewmodel", "compose", "preview")
             implementationClass = "com.rohittp.plugables.viewmodelstub.ViewModelStubPlugin"
         }
     }
