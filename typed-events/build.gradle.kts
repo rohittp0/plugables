@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     `kotlin-dsl`
-    `maven-publish`
+    id("com.gradle.plugin-publish") version "1.3.0"
 }
 
 group = "com.rohittp.plugables"
@@ -26,9 +26,15 @@ dependencies {
 }
 
 gradlePlugin {
+    website = "https://github.com/rohittp0/plugables"
+    vcsUrl = "https://github.com/rohittp0/plugables.git"
+
     plugins {
         create("typedEvents") {
             id = "com.rohittp.plugables.typed-events"
+            displayName = "TypedEvents"
+            description = "Generates type-safe Kotlin event classes from a YAML schema for Android projects."
+            tags = listOf("android", "kotlin", "events", "codegen")
             implementationClass = "com.rohittp.plugables.typedevents.TypedEventsPlugin"
         }
     }
