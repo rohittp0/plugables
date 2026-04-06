@@ -3,6 +3,12 @@ name: Build and Publish
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      plugins:
+        description: 'Comma-separated list of plugins to publish (e.g. viewmodel-stub,typed-events)'
+        required: true
+        type: string
 
 jobs:
   detect:
@@ -18,13 +24,19 @@ jobs:
       - name: Find changed plugins
         id: changed
         run: |
-          plugins=$(
-            git diff --name-only HEAD~1 HEAD 2>/dev/null \
-              | grep -E '^[^/]+/build\.gradle\.kts$' \
-              | cut -d/ -f1 \
-              | sort -u \
-              | jq -R -s -c 'split("\n") | map(select(length > 0))'
-          )
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            plugins=$(echo "${{ inputs.plugins }}" \
+              | tr ',' '\n' | tr -d ' ' | grep -v '^$' \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            plugins=$(
+              git diff --name-only HEAD~1 HEAD 2>/dev/null \
+                | grep -E '^[^/]+/build\.gradle\.kts$' \
+                | cut -d/ -f1 \
+                | sort -u \
+                | jq -R -s -c 'split("\n") | map(select(length > 0))'
+            )
+          fi
           echo "plugins=${plugins:-[]}" >> "$GITHUB_OUTPUT"
           echo "Changed plugins: ${plugins:-[]}"
 
