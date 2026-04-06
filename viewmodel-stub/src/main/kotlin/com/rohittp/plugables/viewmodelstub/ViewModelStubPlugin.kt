@@ -20,10 +20,16 @@ class ViewModelStubPlugin : Plugin<Project> {
         )
 
         project.afterEvaluate {
-            // Wire output dir into Android source set so generated files are compiled
-            // Use .get().asFile inside afterEvaluate — the value is available by now
             val android = project.extensions.findByName("android") as? BaseExtension
-            android?.sourceSets?.getByName("main")?.java?.srcDir(ext.outputDir.get().asFile)
+            if (android == null) {
+                project.logger.warn(
+                    "[viewmodel-stub] Android plugin not found in project '${project.name}'. " +
+                    "This plugin targets Android Kotlin projects only — source set wiring skipped."
+                )
+            } else {
+                // Pass the Provider<Directory> directly — defers resolution and is configuration-cache safe
+                android.sourceSets.getByName("main").java.srcDirs(ext.outputDir)
+            }
 
             // Ensure generation runs before any Kotlin compilation task
             project.tasks.matching { t -> t.name.matches(Regex("compile.*Kotlin")) }
