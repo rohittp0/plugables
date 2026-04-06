@@ -4,3 +4,4 @@ plugins {
 
 rootProject.name = "plugables"
 include(":viewmodel-stub")
+include(":typed-events")
