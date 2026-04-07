@@ -2,7 +2,6 @@ package com.rohittp.plugables.typedevents
 
 import kotlin.test.Test
 import kotlin.test.assertContains
-import kotlin.test.assertTrue
 
 class ClassRendererTest {
 
