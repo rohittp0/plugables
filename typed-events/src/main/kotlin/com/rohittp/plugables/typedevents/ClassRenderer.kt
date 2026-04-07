@@ -12,41 +12,46 @@ object ClassRenderer {
         sb.appendLine("abstract class AnalyticsBase {")
         sb.appendLine()
         sb.appendLine("    protected open fun logEvent(eventName: String, params: Map<String, Any?>) = Unit")
+        sb.appendLine()
+        sb.appendLine("    companion object {")
+        sb.appendLine()
+        sb.appendLine("        var instance: AnalyticsBase? = null")
 
         events.forEach { event ->
             sb.appendLine()
             renderMethod(sb, event)
         }
 
+        sb.appendLine("    }")
         sb.appendLine("}")
         return sb.toString()
     }
 
     private fun renderMethod(sb: StringBuilder, event: EventSpec) {
         // KDoc
-        sb.appendLine("    /**")
-        sb.appendLine("     * ${event.info}")
+        sb.appendLine("        /**")
+        sb.appendLine("         * ${event.info}")
         event.params.forEach { (key, spec) ->
-            sb.appendLine("     * @param ${YamlParser.toParamName(key)} ${spec.info}")
+            sb.appendLine("         * @param ${YamlParser.toParamName(key)} ${spec.info}")
         }
-        sb.appendLine("     */")
+        sb.appendLine("         */")
 
         // Signature
         val paramsDecl = event.params.entries.joinToString(", ") { (key, spec) ->
             "${YamlParser.toParamName(key)}: ${spec.type}"
         }
-        sb.appendLine("    fun ${event.function}($paramsDecl) {")
+        sb.appendLine("        fun ${event.function}($paramsDecl) {")
 
         // Body
         if (event.params.isEmpty()) {
-            sb.appendLine("        logEvent(\"${event.eventName}\", emptyMap())")
+            sb.appendLine("            instance?.logEvent(\"${event.eventName}\", emptyMap())")
         } else {
             val mapEntries = event.params.keys.joinToString(", ") { key ->
                 "\"$key\" to ${YamlParser.toParamName(key)}"
             }
-            sb.appendLine("        logEvent(\"${event.eventName}\", mapOf($mapEntries))")
+            sb.appendLine("            instance?.logEvent(\"${event.eventName}\", mapOf($mapEntries))")
         }
 
-        sb.appendLine("    }")
+        sb.appendLine("        }")
     }
 }

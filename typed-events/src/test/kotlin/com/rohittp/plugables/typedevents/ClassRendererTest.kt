@@ -11,6 +11,8 @@ class ClassRendererTest {
         val output = ClassRenderer.render("events.yaml", emptyList())
         assertContains(output, "abstract class AnalyticsBase")
         assertContains(output, "protected open fun logEvent(eventName: String, params: Map<String, Any?>) = Unit")
+        assertContains(output, "companion object {")
+        assertContains(output, "var instance: AnalyticsBase? = null")
         assertContains(output, "package com.rohittp.plugables.analytics")
         assertContains(output, "GENERATED FILE")
     }
@@ -22,7 +24,7 @@ class ClassRendererTest {
         )
         val output = ClassRenderer.render("events.yaml", events)
         assertContains(output, "fun logScreenViewed()")
-        assertContains(output, "logEvent(\"screen_viewed\", emptyMap())")
+        assertContains(output, "instance?.logEvent(\"screen_viewed\", emptyMap())")
         assertContains(output, "* User viewed a screen")
     }
 
@@ -41,7 +43,7 @@ class ClassRendererTest {
         )
         val output = ClassRenderer.render("events.yaml", events)
         assertContains(output, "fun logPurchaseCompleted(itemId: String, price: Double)")
-        assertContains(output, "logEvent(\"purchase_completed\", mapOf(\"item_id\" to itemId, \"price\" to price))")
+        assertContains(output, "instance?.logEvent(\"purchase_completed\", mapOf(\"item_id\" to itemId, \"price\" to price))")
         assertContains(output, "@param itemId The purchased item ID")
         assertContains(output, "@param price Final price paid")
     }
