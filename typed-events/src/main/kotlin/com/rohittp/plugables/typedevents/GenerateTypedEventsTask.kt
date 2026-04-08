@@ -29,11 +29,15 @@ abstract class GenerateTypedEventsTask : DefaultTask() {
         outRoot.mkdirs()
 
         val pkgDir = File(outRoot, "com/rohittp/plugables/analytics").apply { mkdirs() }
-        File(pkgDir, "AnalyticsBase.kt").writeText(
-            ClassRenderer.render(spec.name, events)
+
+        File(pkgDir, "TypedEventHandler.kt").writeText(
+            ClassRenderer.renderHandlerFile()
+        )
+        File(pkgDir, "AnalyticsEvents.kt").writeText(
+            ClassRenderer.renderEventsFile(spec.name, events)
         )
 
-        logger.lifecycle("[typed-events] Generated AnalyticsBase with ${events.size} event(s).")
+        logger.lifecycle("[typed-events] Generated TypedEventHandler and AnalyticsEvents with ${events.size} event(s).")
     }
 
     private fun validate(events: List<EventSpec>) {

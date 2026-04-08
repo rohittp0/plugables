@@ -1,8 +1,9 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.plugin.compatibility.compatibility
 
 plugins {
     `kotlin-dsl`
-    id("com.gradle.plugin-publish") version "1.3.0"
+    id("com.gradle.plugin-publish")
 }
 
 group = "com.rohittp.plugables"
@@ -20,8 +21,8 @@ java {
 }
 
 dependencies {
-    compileOnly("com.android.tools.build:gradle:8.5.0")
-    implementation("org.yaml:snakeyaml:2.2")
+    compileOnly("com.android.tools.build:gradle:9.1.0")
+    implementation("org.yaml:snakeyaml:2.6")
     testImplementation(kotlin("test"))
 }
 
@@ -36,6 +37,11 @@ gradlePlugin {
             description = "Generates type-safe Kotlin event classes from a YAML schema for Android projects."
             tags = listOf("android", "kotlin", "events", "codegen")
             implementationClass = "com.rohittp.plugables.typedevents.TypedEventsPlugin"
+            compatibility {
+                features {
+                    configurationCache = true
+                }
+            }
         }
     }
 }
