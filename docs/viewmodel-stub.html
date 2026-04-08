@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>viewmodel-stub Gradle Plugin — Plugables</title>
   <meta name="description" content="Generate ViewModel interfaces and no-op stubs from annotated Kotlin classes. Perfect for unit tests and Compose previews." />
-  <link rel="canonical" href="https://rohittp.com/plugables/viewmodel-stub.html" />
+  <link rel="canonical" href="https://rohittp.com/plugables/viewmodel-stub" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 
   <!-- Open Graph -->
@@ -13,7 +13,7 @@
   <meta property="og:site_name" content="Plugables" />
   <meta property="og:title" content="viewmodel-stub Gradle Plugin — Plugables" />
   <meta property="og:description" content="Generate ViewModel interfaces and no-op stubs from annotated Kotlin classes. Perfect for unit tests and Compose previews." />
-  <meta property="og:url" content="https://rohittp.com/plugables/viewmodel-stub.html" />
+  <meta property="og:url" content="https://rohittp.com/plugables/viewmodel-stub" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary" />
@@ -27,10 +27,10 @@
 <!-- ─── Navigation ─────────────────────────────────────────── -->
 <nav class="site-nav">
   <div class="nav-inner">
-    <a href="index.html" class="nav-brand">Plugables</a>
+    <a href="index" class="nav-brand">Plugables</a>
     <div class="nav-links">
-      <a href="viewmodel-stub.html">viewmodel-stub</a>
-      <a href="typed-events.html">typed-events</a>
+      <a href="viewmodel-stub">viewmodel-stub</a>
+      <a href="typed-events">typed-events</a>
       <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
     </div>
   </div>
@@ -62,7 +62,7 @@
   <main class="content">
 
     <div class="breadcrumb">
-      <a href="index.html">Plugables</a>
+      <a href="index">Plugables</a>
       <span class="breadcrumb-sep">/</span>
       viewmodel-stub
     </div>
@@ -139,6 +139,15 @@
 
       <p>No DSL block is required if your Kotlin sources are in the default location
          (<code>src/main/kotlin</code>). The output directory also has a sensible default.</p>
+
+      <div class="callout">
+        <p class="callout-title">Requires AGP 7.2+</p>
+        <p>
+          Generated sources are wired via the Android Variant API
+          (<code>AndroidComponentsExtension</code>), which requires Android Gradle
+          Plugin 7.2 or higher.
+        </p>
+      </div>
 
       <p>To customise either path, add a <code>viewModelStub</code> block:</p>
 
@@ -246,9 +255,10 @@
         annotations, and all public (including <code>suspend</code>) functions.
       </p>
       <p>
-        The output directory is wired into the Android Gradle Plugin's <code>main</code>
-        source set via <code>srcDirs(provider)</code>, making the generated classes
-        available to your code immediately.
+        The output directory is wired into all Android build variants using the
+        Variant API (<code>AndroidComponentsExtension.onVariants</code>), making
+        generated classes available to the compiler immediately without
+        <code>afterEvaluate</code>.
       </p>
     </section>
 
@@ -484,12 +494,12 @@
 <!-- ─── Footer ──────────────────────────────────────────────── -->
 <footer class="site-footer">
   <div class="footer-inner">
-    <a href="index.html" class="footer-brand">Plugables</a>
+    <a href="index" class="footer-brand">Plugables</a>
     <span class="footer-meta">com.rohittp.plugables.viewmodel-stub · v1.0.0</span>
     <div class="footer-links">
       <a href="https://github.com/rohittp0/plugables/tree/main/viewmodel-stub" target="_blank" rel="noopener noreferrer">Source</a>
-      <a href="index.html">← All plugins</a>
-      <a href="typed-events.html">typed-events →</a>
+      <a href="index">← All plugins</a>
+      <a href="typed-events">typed-events →</a>
     </div>
   </div>
 </footer>
