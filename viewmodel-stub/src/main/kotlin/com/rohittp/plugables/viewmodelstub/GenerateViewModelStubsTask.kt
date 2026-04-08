@@ -2,6 +2,7 @@ package com.rohittp.plugables.viewmodelstub
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
@@ -10,6 +11,7 @@ import org.gradle.api.tasks.SkipWhenEmpty
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 
+@CacheableTask
 abstract class GenerateViewModelStubsTask : DefaultTask() {
 
     @get:InputFiles
