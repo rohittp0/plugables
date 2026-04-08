@@ -27,7 +27,7 @@ dependencies {
 }
 
 gradlePlugin {
-    website = "https://rohittp.com/plugables"
+    website = "https://rohittp.com/plugables/typed-events"
     vcsUrl = "https://github.com/rohittp0/plugables.git"
 
     plugins {

@@ -26,7 +26,7 @@ dependencies {
 }
 
 gradlePlugin {
-    website = "https://rohittp.com/plugables"
+    website = "https://rohittp.com/plugables/viewmodel-stub"
     vcsUrl = "https://github.com/rohittp0/plugables.git"
 
     plugins {
