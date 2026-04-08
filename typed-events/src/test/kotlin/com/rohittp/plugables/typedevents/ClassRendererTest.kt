@@ -16,9 +16,9 @@ class ClassRendererTest {
     }
 
     @Test
-    fun `renderHandlerFile contains private typedEventHandler variable`() {
+    fun `renderHandlerFile contains internal typedEventHandler variable`() {
         val output = ClassRenderer.renderHandlerFile()
-        assertContains(output, "private var typedEventHandler: ((eventName: String, params: Map<String, Any?>) -> Unit)? = null")
+        assertContains(output, "internal var typedEventHandler: ((eventName: String, params: Map<String, Any?>) -> Unit)? = null")
     }
 
     @Test
