@@ -1,0 +1,14 @@
+# Plugables — Gradle Plugins for Android
+
+> Opinionated code-generation Gradle plugins for Android and Kotlin projects,
+> published to the Gradle Plugin Portal.
+
+## Plugins
+
+- [typed-events](https://rohittp.com/plugables/typed-events): Generate typed analytics event functions from a YAML schema for Android. Override a single method to connect Firebase, Mixpanel, or any analytics backend.
+- [viewmodel-stub](https://rohittp.com/plugables/viewmodel-stub): Generate ViewModel interfaces and no-op stubs from @ViewModelStub-annotated Kotlin classes. Ready for unit tests and Compose previews.
+
+## Source
+
+- [GitHub](https://github.com/rohittp0/plugables)
+- [Gradle Plugin Portal](https://plugins.gradle.org/search?term=com.rohittp.plugables)
