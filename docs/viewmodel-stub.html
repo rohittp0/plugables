@@ -157,7 +157,19 @@
     <!-- ─── Installation ─────────────────────────────────── -->
     <section id="installation" class="doc-section">
       <h2>Installation</h2>
-      <p>Apply the plugin in your Android module's <code>build.gradle.kts</code>:</p>
+      <p>Add Maven Central to your plugin repositories in <code>settings.gradle.kts</code>:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">settings.gradle.kts</span>
+        <pre><code><span class="fn">pluginManagement</span> <span class="op">{</span>
+    <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">mavenCentral</span><span class="op">()</span>
+        <span class="fn">gradlePluginPortal</span><span class="op">()</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>Then apply the plugin in your Android module's <code>build.gradle.kts</code>:</p>
 
       <div class="code-wrap">
         <span class="code-lang">build.gradle.kts</span>

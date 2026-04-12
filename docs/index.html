@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Plugables — Gradle Plugins for Android</title>
-  <meta name="description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects. Available on the Gradle Plugin Portal — no repository setup needed." />
+  <meta name="description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects. Published to Maven Central — available with one pluginManagement line." />
   <link rel="canonical" href="https://rohittp.com/plugables/" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 
@@ -12,7 +12,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Plugables" />
   <meta property="og:title" content="Plugables — Gradle Plugins for Android" />
-  <meta property="og:description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects. Available on the Gradle Plugin Portal — no repository setup needed." />
+  <meta property="og:description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects. Published to Maven Central — available with one pluginManagement line." />
   <meta property="og:url" content="https://rohittp.com/plugables/" />
   <meta property="og:image" content="https://rohittp.com/plugables/og-image.png" />
   <meta property="og:image:width" content="1200" />
@@ -21,7 +21,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Plugables — Gradle Plugins for Android" />
-  <meta name="twitter:description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects. Available on the Gradle Plugin Portal — no repository setup needed." />
+  <meta name="twitter:description" content="Opinionated code-generation Gradle plugins for Android and Kotlin projects. Published to Maven Central — available with one pluginManagement line." />
   <meta name="twitter:image" content="https://rohittp.com/plugables/og-image.png" />
 
   <link rel="stylesheet" href="style.css" />
@@ -75,7 +75,7 @@
 
   <!-- ─── Hero ───────────────────────────────────────────────── -->
   <section class="hero">
-    <p class="hero-eyebrow">Gradle Plugins · Plugin Portal</p>
+    <p class="hero-eyebrow">Gradle Plugins · Maven Central</p>
     <h1 class="hero-title">Plug<em>ables</em></h1>
     <p class="hero-desc">
       Opinionated code-generation plugins for Android &amp; Kotlin projects.
@@ -93,11 +93,21 @@
     <p class="section-label">Getting Started</p>
     <h2 style="margin-top:0">Apply a plugin</h2>
     <p>
-      All plugins are published to the
-      <a href="https://plugins.gradle.org/search?term=com.rohittp.plugables" target="_blank" rel="noopener noreferrer">Gradle Plugin Portal</a>.
-      No repository configuration is needed — just apply the plugin directly in your
-      module's <code>build.gradle.kts</code>:
+      All plugins are published to
+      <a href="https://central.sonatype.com/search?q=com.rohittp.plugables" target="_blank" rel="noopener noreferrer">Maven Central</a>.
+      Add Maven Central to your plugin repositories in <code>settings.gradle.kts</code>,
+      then apply the plugin in your module:
     </p>
+
+    <div class="code-wrap">
+      <span class="code-lang">settings.gradle.kts</span>
+      <pre><code><span class="fn">pluginManagement</span> <span class="op">{</span>
+    <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">mavenCentral</span><span class="op">()</span>
+        <span class="fn">gradlePluginPortal</span><span class="op">()</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+    </div>
 
     <div class="code-wrap">
       <span class="code-lang">build.gradle.kts</span>
@@ -109,10 +119,10 @@
     </div>
 
     <div class="callout tip">
-      <p class="callout-title">No credentials required</p>
+      <p class="callout-title">No authentication required</p>
       <p>
-        The Gradle Plugin Portal is the default plugin repository — no extra
-        <code>repositories</code> block or authentication setup needed.
+        Maven Central is a public repository — no credentials or account needed
+        to consume these plugins.
       </p>
     </div>
   </section>
@@ -201,7 +211,7 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <a href="index" class="footer-brand">Plugables</a>
-    <span class="footer-meta">Published to the Gradle Plugin Portal · Group <code>com.rohittp.plugables</code></span>
+    <span class="footer-meta">Published to Maven Central · Group <code>com.rohittp.plugables</code></span>
     <div class="footer-links">
       <a href="https://github.com/rohittp0/plugables" target="_blank" rel="noopener noreferrer">Source</a>
       <a href="viewmodel-stub">viewmodel-stub</a>
