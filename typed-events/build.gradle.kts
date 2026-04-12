@@ -1,12 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.gradle.plugin.compatibility.compatibility
 
 plugins {
     `kotlin-dsl`
-    id("com.gradle.plugin-publish")
+    id("com.vanniktech.maven.publish")
 }
 
-group = "com.rohittp.plugables"
 version = "1.0.0"
 
 kotlin {
@@ -27,9 +25,6 @@ dependencies {
 }
 
 gradlePlugin {
-    website = "https://rohittp.com/plugables/typed-events"
-    vcsUrl = "https://github.com/rohittp0/plugables"
-
     plugins {
         create("typedEvents") {
             id = "com.rohittp.plugables.typed-events"
@@ -37,11 +32,35 @@ gradlePlugin {
             description = "Generates type-safe Kotlin event classes from a YAML schema for Android projects."
             tags = listOf("android", "kotlin", "events", "codegen")
             implementationClass = "com.rohittp.plugables.typedevents.TypedEventsPlugin"
-            compatibility {
-                features {
-                    configurationCache = true
-                }
+        }
+    }
+}
+
+mavenPublishing {
+    publishToMavenCentral()
+    signAllPublications()
+
+    pom {
+        name.set("TypedEvents")
+        description.set("Generates type-safe Kotlin event classes from a YAML schema for Android projects.")
+        url.set("https://github.com/rohittp0/plugables")
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://opensource.org/licenses/MIT")
             }
+        }
+        developers {
+            developer {
+                id.set("rohittp0")
+                name.set("Rohit T P")
+                url.set("https://rohittp.com")
+            }
+        }
+        scm {
+            url.set("https://github.com/rohittp0/plugables")
+            connection.set("scm:git:git://github.com/rohittp0/plugables.git")
+            developerConnection.set("scm:git:ssh://git@github.com/rohittp0/plugables.git")
         }
     }
 }

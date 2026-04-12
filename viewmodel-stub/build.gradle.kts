@@ -1,12 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.gradle.plugin.compatibility.compatibility
 
 plugins {
     `kotlin-dsl`
-    id("com.gradle.plugin-publish")
+    id("com.vanniktech.maven.publish")
 }
 
-group = "com.rohittp.plugables"
 version = "1.0.0"
 
 kotlin {
@@ -26,9 +24,6 @@ dependencies {
 }
 
 gradlePlugin {
-    website = "https://rohittp.com/plugables/viewmodel-stub"
-    vcsUrl = "https://github.com/rohittp0/plugables"
-
     plugins {
         create("viewModelStub") {
             id = "com.rohittp.plugables.viewmodel-stub"
@@ -36,11 +31,35 @@ gradlePlugin {
             description = "Generates interface + preview-safe stub classes from Android ViewModels annotated with @ViewModelStub."
             tags = listOf("android", "kotlin", "viewmodel", "compose", "preview")
             implementationClass = "com.rohittp.plugables.viewmodelstub.ViewModelStubPlugin"
-            compatibility {
-                features {
-                    configurationCache = true
-                }
+        }
+    }
+}
+
+mavenPublishing {
+    publishToMavenCentral()
+    signAllPublications()
+
+    pom {
+        name.set("ViewModelStub")
+        description.set("Generates interface + preview-safe stub classes from Android ViewModels annotated with @ViewModelStub.")
+        url.set("https://github.com/rohittp0/plugables")
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://opensource.org/licenses/MIT")
             }
+        }
+        developers {
+            developer {
+                id.set("rohittp0")
+                name.set("Rohit T P")
+                url.set("https://rohittp.com")
+            }
+        }
+        scm {
+            url.set("https://github.com/rohittp0/plugables")
+            connection.set("scm:git:git://github.com/rohittp0/plugables.git")
+            developerConnection.set("scm:git:ssh://git@github.com/rohittp0/plugables.git")
         }
     }
 }
