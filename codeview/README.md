@@ -20,27 +20,29 @@ Two test modes are supported via the `testMode` DSL knob:
 You need an `Activity` registered in your **main** `AndroidManifest.xml` with a `MAIN/LAUNCHER` intent filter that does **not** populate any content in `onCreate()` (codeview owns the content via Compose UI testing). The simplest option is to declare `androidx.activity.ComponentActivity` directly:
 
 ```xml
-<application ...>
-    <!-- Your real launcher activity -->
-    <activity android:name=".MainActivity" android:exported="true">
-        <intent-filter>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent-filter>
-    </activity>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- Your real launcher activity -->
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
-    <!-- Hosting activity for codeview test renders -->
-    <activity
-        xmlns:tools="http://schemas.android.com/tools"
-        android:name="androidx.activity.ComponentActivity"
-        android:exported="true"
-        tools:replace="android:exported">
-        <intent-filter>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent-filter>
-    </activity>
-</application>
+        <!-- Hosting activity for codeview test renders -->
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="true"
+            tools:replace="android:exported">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
 ```
 
 ## Mode 1 — unit (Robolectric, default)
