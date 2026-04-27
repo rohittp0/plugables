@@ -73,15 +73,24 @@
     img.addEventListener("load", function () {
       const sx = img.clientWidth / spec.imageWidth;
       const sy = img.clientHeight / spec.imageHeight;
-      spec.nodes.forEach(function (n) {
+      // Only render nodes that resolved to a file in the user's project (others are
+      // Compose-internal call sites whose openUrl is empty). Sort largest-first so
+      // smaller, more-specific nodes paint on top and win hover/click.
+      const visible = spec.nodes
+        .filter(function (n) { return n.openUrl && n.openUrl.length > 0; })
+        .slice()
+        .sort(function (a, b) {
+          return (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height);
+        });
+      visible.forEach(function (n) {
         const ov = document.createElement("a");
         ov.className = "overlay";
-        ov.href = n.openUrl || spec.openUrl;
+        ov.href = n.openUrl;
         ov.style.left = (n.bounds.x * sx) + "px";
         ov.style.top = (n.bounds.y * sy) + "px";
         ov.style.width = (n.bounds.width * sx) + "px";
         ov.style.height = (n.bounds.height * sy) + "px";
-        ov.addEventListener("mousemove", function (e) { showTooltip(e, n.name); });
+        ov.addEventListener("mousemove", function (e) { showTooltip(e, n.name + ' — line ' + n.sourceLine); });
         ov.addEventListener("mouseleave", hideTooltip);
         stage.appendChild(ov);
       });
