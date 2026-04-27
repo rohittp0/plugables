@@ -75,6 +75,10 @@ class CodeViewPlugin : Plugin<Project> {
         aggregate: TaskProvider<CodeviewReportTask>,
         variant: Variant,
     ) {
+        // Skip variants without host tests — AGP 9 disables release-variant unit tests by default.
+        val hasUnitTests = (variant as? HasHostTests)?.hostTests?.isNotEmpty() ?: false
+        if (!hasUnitTests) return
+
         val cap = variant.name.replaceFirstChar { it.uppercaseChar() }
         val testTaskName = "test${cap}UnitTest"
 
