@@ -33,13 +33,43 @@ abstract class PullCodeviewSidecarsTask @Inject constructor(
         val out = outputDir.get().asFile.apply { deleteRecursively(); mkdirs() }
         val devicePath = "/sdcard/codeview-sidecars"
         val adb = resolveAdb()
+        val deviceArgs = pickDevice(adb)
 
         logger.lifecycle("[codeview] Pulling sidecars from device path '$devicePath/.' to '${out.absolutePath}/'")
         exec.exec {
-            commandLine(adb, "pull", "$devicePath/.", out.absolutePath)
+            commandLine(listOf(adb) + deviceArgs + listOf("pull", "$devicePath/.", out.absolutePath))
         }
         exec.exec {
-            commandLine(adb, "shell", "rm", "-rf", devicePath)
+            commandLine(listOf(adb) + deviceArgs + listOf("shell", "rm", "-rf", devicePath))
+        }
+    }
+
+    /**
+     * If multiple devices are attached, pick the first emulator (matches AGP's
+     * `connected*AndroidTest` default selection). Returns the args to pass to adb
+     * (`-s <serial>` or empty when only one device is present).
+     */
+    private fun pickDevice(adb: String): List<String> {
+        val out = java.io.ByteArrayOutputStream()
+        exec.exec {
+            commandLine(adb, "devices")
+            standardOutput = out
+        }
+        val devices = out.toString().lineSequence()
+            .drop(1)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("*") }
+            .mapNotNull {
+                val parts = it.split("\\s+".toRegex())
+                if (parts.size >= 2 && parts[1] == "device") parts[0] else null
+            }
+            .toList()
+        return when {
+            devices.size <= 1 -> emptyList()
+            else -> {
+                val pick = devices.firstOrNull { it.startsWith("emulator-") } ?: devices.first()
+                listOf("-s", pick)
+            }
         }
     }
 

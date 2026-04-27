@@ -10,18 +10,14 @@ package com.rohittp.plugables.codeview.generated
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.currentComposer
 import androidx.compose.runtime.tooling.CompositionData
-import androidx.compose.runtime.tooling.LocalInspectionTables
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.tooling.data.Group
-import androidx.compose.ui.tooling.data.NodeGroup
-import androidx.compose.ui.tooling.data.SourceLocation
-import androidx.compose.ui.tooling.data.asTree
+import androidx.compose.ui.tooling.data.ContextCache
+import androidx.compose.ui.tooling.data.SourceContext
+import androidx.compose.ui.tooling.data.mapTree
 import java.io.File
 
 object CodeviewRuntime {
@@ -36,21 +32,43 @@ object CodeviewRuntime {
         previewSourceLine: Int,
         content: @Composable () -> Unit,
     ) {
-        val tables = mutableSetOf<CompositionData>()
+        val record = androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
         uiTest.setContent {
-            // Register the current Composer's compositionData directly. The CompositionLocal
-            // is also provided so any nested Composition (e.g. a sub-window) joins the set.
-            tables.add(currentComposer.compositionData)
-            CompositionLocalProvider(LocalInspectionTables provides tables) {
+            androidx.compose.ui.tooling.Inspectable(record) {
                 content()
             }
         }
         uiTest.waitForIdle()
+        val tables: Set<CompositionData> = record.store
 
+        // Walk the slot tree via mapTree (Compose 1.11+ API). Each callback receives a
+        // SourceContext with the call's name, bounds, and source position. Returning null
+        // skips a group; otherwise we emit a NodeJson and the runtime threads it through
+        // to its parent so we can wire parentId in one pass.
         val nodes = mutableListOf<NodeJson>()
+        val cache = ContextCache()
         val nextIdHolder = intArrayOf(1)
         tables.forEach { data ->
-            walk(data.asTree(), parentId = null, nextIdHolder = nextIdHolder, out = nodes)
+            data.mapTree<NodeJson>({ _, ctx, childNodes ->
+                val box = ctx.bounds
+                if (box.right <= box.left || box.bottom <= box.top) return@mapTree null
+                val myId = nextIdHolder[0]
+                nextIdHolder[0] = myId + 1
+                val loc = ctx.location
+                val node = NodeJson(
+                    id = myId,
+                    name = ctx.name ?: "Group",
+                    x = box.left, y = box.top,
+                    w = box.right - box.left, h = box.bottom - box.top,
+                    sourceFileName = loc?.sourceFile,
+                    packageHash = loc?.packageHash ?: 0,
+                    line = loc?.lineNumber ?: -1,
+                    parentId = null,
+                )
+                nodes.add(node)
+                childNodes.forEach { it.parentId = myId }
+                node
+            }, cache)
         }
 
         outputDir.mkdirs()
@@ -103,45 +121,15 @@ object CodeviewRuntime {
         }
     }
 
-    private data class NodeJson(
+    private class NodeJson(
         val id: Int,
         val name: String,
         val x: Int, val y: Int, val w: Int, val h: Int,
         val sourceFileName: String?,
         val packageHash: Int,
         val line: Int,
-        val parentId: Int?,
+        var parentId: Int?,
     )
-
-    private fun walk(
-        group: Group,
-        parentId: Int?,
-        nextIdHolder: IntArray,
-        out: MutableList<NodeJson>,
-    ) {
-        val box = group.box
-        val loc: SourceLocation? = group.location
-        val name = (group as? NodeGroup)?.let { it.node::class.java.simpleName }
-            ?: group.name?.toString()
-            ?: "Group"
-        if (box.right > box.left && box.bottom > box.top) {
-            val myId = nextIdHolder[0]
-            nextIdHolder[0] = myId + 1
-            out.add(NodeJson(
-                id = myId,
-                name = name,
-                x = box.left, y = box.top,
-                w = box.right - box.left, h = box.bottom - box.top,
-                sourceFileName = loc?.sourceFile,
-                packageHash = loc?.packageHash ?: 0,
-                line = loc?.lineNumber ?: -1,
-                parentId = parentId,
-            ))
-            group.children.forEach { walk(it, myId, nextIdHolder, out) }
-        } else {
-            group.children.forEach { walk(it, parentId, nextIdHolder, out) }
-        }
-    }
 
     private fun buildJson(
         previewId: String,
