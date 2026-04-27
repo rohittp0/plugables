@@ -4,11 +4,37 @@ Generate an interactive HTML report of every `@Preview` composable in your Andro
 
 ## How it works
 
-For each `@Preview` discovered in your sources, codeview generates a JUnit test that renders the preview under Robolectric + Compose UI testing, walks the slot table to extract every composable's bounds + source location, captures a bitmap, and writes both to `build/generated/codeview/sidecars/`. A second task assembles the sidecars into a single `index.html`.
+For each `@Preview` discovered in your sources, codeview generates a JUnit test that renders the preview under Robolectric + Compose UI testing, walks the slot table via `androidx.compose.ui.tooling.data` (the same API Layout Inspector uses) to extract every composable's bounds + source location, and writes a JSON sidecar to `build/generated/codeview/sidecars/`. A second task assembles the sidecars into a single `index.html`.
 
 It uses Compose's existing `sourceInformation` metadata (default-on for debug builds) — no custom compiler plugin.
 
 ## Setup
+
+You need an `Activity` registered in your **main** `AndroidManifest.xml` with a `MAIN/LAUNCHER` intent filter that does **not** populate any content in `onCreate()` (codeview will own its content via Compose UI testing). The simplest option is to declare `androidx.activity.ComponentActivity` directly:
+
+```xml
+<application ...>
+    <!-- Your real launcher activity -->
+    <activity android:name=".MainActivity" android:exported="true">
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+    </activity>
+
+    <!-- Hosting activity for codeview test renders -->
+    <activity
+        xmlns:tools="http://schemas.android.com/tools"
+        android:name="androidx.activity.ComponentActivity"
+        android:exported="true"
+        tools:replace="android:exported">
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+    </activity>
+</application>
+```
 
 `build.gradle.kts`:
 
@@ -38,46 +64,40 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
-codeview { ideScheme.set("idea") } // or "vscode"
-```
-
-You also need a unit-test manifest at `src/test/AndroidManifest.xml` adding the launcher intent filter to `ComponentActivity` (workaround for Robolectric/ComposeUiTest compatibility, see Limitations):
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-    <application>
-        <activity
-            android:name="androidx.activity.ComponentActivity"
-            android:exported="true"
-            tools:node="merge">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
+codeview {
+    ideScheme.set("idea") // or "vscode"
+    testActivityClass.set("androidx.activity.ComponentActivity")
+}
 ```
 
 ## Usage
 
 ```bash
-./gradlew testDebugUnitTest        # renders previews + extracts slot tree
-./gradlew codeviewReportDebug      # assembles HTML report
+./gradlew testDebugUnitTest      # renders previews + extracts slot tree, writes sidecars
+./gradlew codeviewReportDebug    # assembles HTML report
 open app/build/reports/codeview/debug/index.html
 ```
 
+## Why this is the way it is
+
+Three non-obvious things forced the current shape of the plugin; document them so the next person doesn't have to relearn:
+
+1. **The unit-test APK uses your main `AndroidManifest.xml`, not the merged unit-test one.** AGP packages `apk-for-local-test.ap_` from the main source set; entries you put under `src/test/AndroidManifest.xml` never reach Robolectric's `PackageManager`. That's why `testActivityClass` must point at an activity already registered in main.
+2. **Robolectric PR #4736 enforces strict activity resolution.** Even with an explicit component (`cmp=...`) in the launch intent, it requires the activity at that component to have a matching `MAIN/LAUNCHER` intent filter. Hence the recommendation above to add such a filter to whichever activity codeview launches.
+3. **`LocalInspectionTables` alone doesn't populate.** You also have to add `currentComposer.compositionData` to the set inside the composition itself — that's the same pattern Layout Inspector uses internally.
+
 ## v1 limitations
 
-- **Robolectric/ComposeUiTest interop is currently broken** at activity launch in the version combination targeted (Robolectric 4.16.1 + Compose UI test 1.11). Robolectric PR #4736 added a strict activity-resolution check that rejects `ActivityScenario.launch(ComponentActivity::class)` when the registered activity has no matching intent filter — even though the launch intent has the component explicitly set. The test manifest workaround above adds a `MAIN/LAUNCHER` intent filter to `ComponentActivity` for unit tests; resolution is still flaky depending on Robolectric/Compose versions in your project. Until upstream resolves this, runtime rendering of previews under Robolectric may fail. Sidecar generation, the report task, and the HTML pipeline all work; only the actual unit-test render step is blocked. Switching to instrumented tests (which need an emulator) sidesteps this entirely.
+- **PNG capture under Robolectric is unreliable.** `captureToImage()` times out in `WindowCapture.forceRedraw` under Robolectric's headless graphics mode. Codeview catches the timeout and continues without the bitmap; the JSON sidecar (with bounds and source positions) is still emitted, and the HTML report degrades gracefully to "no screenshot". To get the PNGs, switch to instrumented tests (needs an emulator) — the same generated test classes work there.
 - **Source-line precision** stops at what Compose's `sourceInformation` records — typically the call site of each composable. Lambda contents (e.g. inside `Text("foo")`) resolve to the `Text(...)` call site.
 - Only JetBrains `idea://` and VS Code `vscode://` URL schemes are supported. Browser must register the protocol handler.
 - `androidx.compose.ui.tooling.data` is `@UiToolingDataApi` (experimental). Bumping Compose may require codeview to follow.
 - `@PreviewParameter` variants render as separate sequenced entries (`_0`, `_1`, …).
 - Robolectric tests are slower than the Layoutlib screenshot path — large modules pay a per-test second.
 
-## Status
+## Future work
 
-v1 is **partial**: discovery, test generation, slot-tree extraction logic, JSON sidecar format, and HTML report are complete. The runtime render step is blocked on the upstream Robolectric/Compose-UI-test incompatibility above. Future work: switch to a Layoutlib-based renderer (would re-introduce the screenshot plugin), or wait for upstream resolution.
+- Restore PNG capture via a Layoutlib renderer (would re-introduce the `com.android.compose.screenshot` plugin path) or via instrumented tests on CI.
+- Discover the user's existing `MAIN/LAUNCHER` activity automatically (avoid the manual `testActivityClass` config).
+- Multi-IDE URL switcher in the report UI (currently scheme is fixed at build time).
+- Multi-module aggregation into a single index.
