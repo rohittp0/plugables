@@ -4,7 +4,9 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.OutputFile
@@ -31,6 +33,9 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
     @get:OutputFile
     abstract val indexOutputFile: RegularFileProperty
 
+    @get:Input
+    abstract val testActivityClass: Property<String>
+
     @TaskAction
     fun generate() {
         val testsDir = testsOutputDir.get().asFile.apply { deleteRecursively(); mkdirs() }
@@ -46,8 +51,9 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
         val pkgDir = File(testsDir, "com/rohittp/plugables/codeview/generated").apply { mkdirs() }
         File(pkgDir, "CodeviewRuntime.kt").writeText(loadHelper())
 
+        val activityFqn = testActivityClass.get()
         previews.forEach { spec ->
-            File(pkgDir, "${spec.id}Test.kt").writeText(renderTestClass(spec, sidecarDir.absolutePath))
+            File(pkgDir, "${spec.id}Test.kt").writeText(renderTestClass(spec, sidecarDir.absolutePath, activityFqn))
         }
 
         indexFile.writeText(renderIndex(previews))
@@ -59,7 +65,7 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
             ?.bufferedReader()?.use { it.readText() }
             ?: error("Missing /codeview-runtime-helpers.kt.tpl on classpath")
 
-    private fun renderTestClass(spec: PreviewSpec, sidecarDir: String): String {
+    private fun renderTestClass(spec: PreviewSpec, sidecarDir: String, activityFqn: String): String {
         val safeSidecarDir = sidecarDir.replace("\\", "\\\\")
         val safeSourceFile = (spec.source.file ?: "").replace("\\", "\\\\")
         return buildString {
@@ -68,7 +74,7 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
             appendLine("@file:OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)")
             appendLine("package com.rohittp.plugables.codeview.generated")
             appendLine()
-            appendLine("import androidx.compose.ui.test.runComposeUiTest")
+            appendLine("import androidx.compose.ui.test.runAndroidComposeUiTest")
             appendLine("import androidx.test.ext.junit.runners.AndroidJUnit4")
             appendLine("import org.junit.Test")
             appendLine("import org.junit.runner.RunWith")
@@ -82,7 +88,7 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
             appendLine("class ${spec.id}Test {")
             appendLine()
             appendLine("    @Test")
-            appendLine("    fun render() = runComposeUiTest {")
+            appendLine("    fun render() = runAndroidComposeUiTest(activityClass = $activityFqn::class.java) {")
             appendLine("        CodeviewRuntime.renderAndCapture(")
             appendLine("            uiTest = this,")
             appendLine("            outputDir = File(\"$safeSidecarDir\"),")

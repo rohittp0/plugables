@@ -26,6 +26,7 @@ class CodeViewPlugin : Plugin<Project> {
                 testsOutputDir.set(testsDir)
                 sidecarOutputDir.set(sidecarsDir)
                 indexOutputFile.set(indexFile)
+                testActivityClass.set(ext.testActivityClass)
             }
         )
 

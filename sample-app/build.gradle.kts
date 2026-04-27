@@ -58,4 +58,5 @@ dependencies {
 
 codeview {
     ideScheme.set("idea")
+    testActivityClass.set("androidx.activity.ComponentActivity")
 }
