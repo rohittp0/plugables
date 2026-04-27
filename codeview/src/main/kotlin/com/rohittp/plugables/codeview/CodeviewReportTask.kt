@@ -81,9 +81,12 @@ abstract class CodeviewReportTask : DefaultTask() {
         }
 
         val html = HtmlReportRenderer.render(rendered, dimensions, ideScheme.get())
-        File(out, "index.html").writeText(html)
+        val indexFile = File(out, "index.html")
+        indexFile.writeText(html)
 
-        logger.lifecycle("[codeview] Wrote ${previews.size} preview(s) to ${out.absolutePath}/index.html")
+        logger.lifecycle("[codeview] Wrote ${previews.size} preview(s).")
+        logger.lifecycle("[codeview] Report:  ${indexFile.absolutePath}")
+        logger.lifecycle("[codeview] Open it: file://${indexFile.absolutePath}")
     }
 
     private fun parseIndex(json: String): List<PreviewSpec> {

@@ -73,10 +73,10 @@ codeview {
 ## Usage
 
 ```bash
-./gradlew testDebugUnitTest      # renders previews + extracts slot tree, writes sidecars
-./gradlew codeviewReportDebug    # assembles HTML report
-open app/build/reports/codeview/debug/index.html
+./gradlew :app:codeviewReportDebug
 ```
+
+That single task runs the generated unit tests (which extract the slot tree and write per-preview sidecars), then assembles the HTML report. The task logs the path to the generated `index.html` on completion — open it in any browser.
 
 ## Why this is the way it is
 
