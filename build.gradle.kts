@@ -9,9 +9,4 @@ plugins {
 
 subprojects {
     group = "com.rohittp.plugables"
-
-    repositories {
-        google()
-        mavenCentral()
-    }
 }
