@@ -16,6 +16,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures { compose = true }
@@ -47,16 +49,18 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    testImplementation(platform("androidx.compose:compose-bom:2026.04.01"))
-    testImplementation("androidx.compose.ui:ui-test-junit4-android")
-    testImplementation("androidx.compose.ui:ui-test-manifest")
-    testImplementation("androidx.compose.ui:ui-tooling-data")
-    testImplementation("androidx.test.ext:junit:1.3.0")
-    testImplementation("org.robolectric:robolectric:4.16.1")
-    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.04.01"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4-android")
+    androidTestImplementation("androidx.compose.ui:ui-tooling-data")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test:rules:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("junit:junit:4.13.2")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
 codeview {
     ideScheme.set("idea")
     testActivityClass.set("androidx.activity.ComponentActivity")
+    testMode.set("instrumented")
 }

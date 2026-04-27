@@ -57,11 +57,11 @@ object CodeviewRuntime {
 
         var bitmapWidth = 0
         var bitmapHeight = 0
+        val pngFile = File(outputDir, "$previewId.png")
         try {
             val bitmap: Bitmap = uiTest.onRoot().captureToImage().asAndroidBitmap()
             bitmapWidth = bitmap.width
             bitmapHeight = bitmap.height
-            val pngFile = File(outputDir, "$previewId.png")
             pngFile.outputStream().use { os -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, os) }
         } catch (t: Throwable) {
             System.err.println("[codeview] Skipping PNG capture for $previewId: ${t.message}")
@@ -78,6 +78,29 @@ object CodeviewRuntime {
             imageHeight = bitmapHeight,
             nodes = nodes,
         ))
+
+        // For instrumented runs the app is uninstalled by AGP after the test, so files in
+        // externalCacheDir disappear before the host can pull them. Use UiAutomation to shell-out
+        // (uid 2000, has write access to /sdcard) and copy sidecars to a shared location that
+        // survives uninstall. The sentinel file `__codeview_published__` flags this mode.
+        if (File(outputDir, "__codeview_published__").exists()) {
+            try {
+                val ui = androidx.test.platform.app.InstrumentationRegistry
+                    .getInstrumentation().uiAutomation
+                val publishDir = "/sdcard/codeview-sidecars"
+                ui.executeShellCommand("mkdir -p $publishDir").close()
+                ui.executeShellCommand("chmod 777 $publishDir").close()
+                sidecar.setReadable(true, false)
+                if (pngFile.exists()) pngFile.setReadable(true, false)
+                ui.executeShellCommand("cp ${sidecar.absolutePath} $publishDir/${sidecar.name}").close()
+                if (pngFile.exists()) {
+                    ui.executeShellCommand("cp ${pngFile.absolutePath} $publishDir/${pngFile.name}").close()
+                }
+            } catch (t: Throwable) {
+                System.err.println("[codeview] Failed to publish sidecars: ${t.message}")
+                t.printStackTrace()
+            }
+        }
     }
 
     private data class NodeJson(

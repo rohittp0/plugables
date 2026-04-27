@@ -26,6 +26,9 @@ class GeneratePreviewTestsTaskTest {
             testsOutputDir.set(File(tmp, "out/tests"))
             sidecarOutputDir.set(File(tmp, "out/sidecars"))
             indexOutputFile.set(File(tmp, "out/preview-index.json"))
+            testActivityClass.set("com.example.app.MainActivity")
+            testMode.set("unit")
+            onDeviceSidecarSubdir.set("codeview")
         }.get()
 
         task.generate()

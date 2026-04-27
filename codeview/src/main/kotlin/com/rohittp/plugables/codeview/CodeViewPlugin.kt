@@ -1,6 +1,7 @@
 package com.rohittp.plugables.codeview
 
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import com.android.build.api.variant.HasDeviceTests
 import com.android.build.api.variant.HasHostTests
 import com.android.build.api.variant.LibraryAndroidComponentsExtension
 import com.android.build.api.variant.Variant
@@ -17,6 +18,7 @@ class CodeViewPlugin : Plugin<Project> {
         val testsDir = project.layout.buildDirectory.dir("generated/source/codeview/test")
         val sidecarsDir = project.layout.buildDirectory.dir("generated/codeview/sidecars")
         val indexFile = project.layout.buildDirectory.file("generated/codeview/preview-index.json")
+        val onDeviceSubdir = "codeview"
 
         val generateTests = project.tasks.register(
             "generateCodeviewPreviewTests",
@@ -27,6 +29,8 @@ class CodeViewPlugin : Plugin<Project> {
                 sidecarOutputDir.set(sidecarsDir)
                 indexOutputFile.set(indexFile)
                 testActivityClass.set(ext.testActivityClass)
+                testMode.set(ext.testMode)
+                onDeviceSidecarSubdir.set(onDeviceSubdir)
             }
         )
 
@@ -42,28 +46,41 @@ class CodeViewPlugin : Plugin<Project> {
         project.plugins.withId("com.android.application") {
             val acx = project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
             acx.onVariants { variant ->
-                wireUnitTestSourcesFor(variant, generateTests)
-                registerPerVariantReport(project, ext, indexFile, sidecarsDir, generateTests, aggregateReport, variant)
+                wireGeneratedSourcesFor(variant, ext, generateTests)
+                registerPerVariantReport(project, ext, indexFile, sidecarsDir, generateTests, aggregateReport, variant, onDeviceSubdir)
             }
         }
         project.plugins.withId("com.android.library") {
             val acx = project.extensions.getByType(LibraryAndroidComponentsExtension::class.java)
             acx.onVariants { variant ->
-                wireUnitTestSourcesFor(variant, generateTests)
-                registerPerVariantReport(project, ext, indexFile, sidecarsDir, generateTests, aggregateReport, variant)
+                wireGeneratedSourcesFor(variant, ext, generateTests)
+                registerPerVariantReport(project, ext, indexFile, sidecarsDir, generateTests, aggregateReport, variant, onDeviceSubdir)
             }
         }
     }
 
-    private fun wireUnitTestSourcesFor(
+    private fun wireGeneratedSourcesFor(
         variant: Variant,
+        ext: CodeViewExtension,
         generateTests: TaskProvider<GeneratePreviewTestsTask>,
     ) {
-        if (variant !is HasHostTests) return
-        variant.hostTests.values.forEach { hostTest ->
-            hostTest.sources.kotlin?.addGeneratedSourceDirectory(
-                generateTests, GeneratePreviewTestsTask::testsOutputDir
-            )
+        when (ext.testMode.get()) {
+            "instrumented" -> {
+                if (variant !is HasDeviceTests) return
+                variant.deviceTests.values.forEach { deviceTest ->
+                    deviceTest.sources.kotlin?.addGeneratedSourceDirectory(
+                        generateTests, GeneratePreviewTestsTask::testsOutputDir
+                    )
+                }
+            }
+            else -> {
+                if (variant !is HasHostTests) return
+                variant.hostTests.values.forEach { hostTest ->
+                    hostTest.sources.kotlin?.addGeneratedSourceDirectory(
+                        generateTests, GeneratePreviewTestsTask::testsOutputDir
+                    )
+                }
+            }
         }
     }
 
@@ -75,13 +92,29 @@ class CodeViewPlugin : Plugin<Project> {
         generateTests: TaskProvider<GeneratePreviewTestsTask>,
         aggregate: TaskProvider<CodeviewReportTask>,
         variant: Variant,
+        onDeviceSubdir: String,
     ) {
-        // Skip variants without host tests — AGP 9 disables release-variant unit tests by default.
-        val hasUnitTests = (variant as? HasHostTests)?.hostTests?.isNotEmpty() ?: false
-        if (!hasUnitTests) return
-
         val cap = variant.name.replaceFirstChar { it.uppercaseChar() }
-        val testTaskName = "test${cap}UnitTest"
+        val mode = ext.testMode.get()
+
+        val (testTaskName, hasTests) = when (mode) {
+            "instrumented" -> "connected${cap}AndroidTest" to ((variant as? HasDeviceTests)?.deviceTests?.isNotEmpty() ?: false)
+            else -> "test${cap}UnitTest" to ((variant as? HasHostTests)?.hostTests?.isNotEmpty() ?: false)
+        }
+        if (!hasTests) return
+
+        val pullSidecars = if (mode == "instrumented") {
+            val appId = (variant as? com.android.build.api.variant.ApplicationVariant)?.applicationId
+            val subdirCapture = onDeviceSubdir
+            val sdkDirValue = readSdkDir(project)
+            project.tasks.register("pullCodeviewSidecars$cap", PullCodeviewSidecarsTask::class.java, Action {
+                if (appId != null) applicationId.set(appId)
+                this.onDeviceSubdir.set(subdirCapture)
+                if (sdkDirValue != null) sdkDir.set(sdkDirValue)
+                outputDir.set(sidecarsDirProvider)
+                dependsOn(project.tasks.named(testTaskName))
+            })
+        } else null
 
         val perVariant = project.tasks.register(
             "codeviewReport$cap",
@@ -93,10 +126,24 @@ class CodeViewPlugin : Plugin<Project> {
                 outputDir.set(ext.outputDir.map { it.dir(variant.name) })
                 ideScheme.set(ext.ideScheme)
                 dependsOn(generateTests)
-                dependsOn(project.tasks.named(testTaskName))
+                if (pullSidecars != null) {
+                    dependsOn(pullSidecars)
+                } else {
+                    dependsOn(project.tasks.named(testTaskName))
+                }
             }
         )
 
         aggregate.configure { dependsOn(perVariant) }
+    }
+
+    private fun readSdkDir(project: Project): String? {
+        val local = project.rootProject.file("local.properties")
+        if (!local.exists()) return null
+        return local.readLines()
+            .firstOrNull { it.startsWith("sdk.dir=") }
+            ?.substringAfter("=")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
     }
 }
