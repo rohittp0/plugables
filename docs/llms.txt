@@ -7,6 +7,7 @@
 
 - [typed-events](https://rohittp.com/plugables/typed-events): Generate typed analytics event functions from a YAML schema for Android. Override a single method to connect Firebase, Mixpanel, or any analytics backend.
 - [viewmodel-stub](https://rohittp.com/plugables/viewmodel-stub): Generate ViewModel interfaces and no-op stubs from @ViewModelStub-annotated Kotlin classes. Ready for unit tests and Compose previews.
+- [codeview](https://rohittp.com/plugables/codeview): Generate an interactive HTML report of every @Preview composable with per-composable click-to-IDE deep-links. Walks Compose's slot tree to map every on-screen rectangle back to its source line.
 
 ## Source
 

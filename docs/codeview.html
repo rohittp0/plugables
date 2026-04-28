@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>codeview Gradle Plugin — Plugables</title>
+  <meta name="description" content="Generate an interactive HTML report of every @Preview composable with per-composable click-to-IDE deep-links. Powered by Compose's slot tree." />
+  <link rel="canonical" href="https://rohittp.com/plugables/codeview" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Plugables" />
+  <meta property="og:title" content="codeview Gradle Plugin — Plugables" />
+  <meta property="og:description" content="Generate an interactive HTML report of every @Preview composable with per-composable click-to-IDE deep-links. Powered by Compose's slot tree." />
+  <meta property="og:url" content="https://rohittp.com/plugables/codeview" />
+  <meta property="og:image" content="https://rohittp.com/plugables/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="codeview Gradle Plugin — Plugables" />
+  <meta name="twitter:description" content="Generate an interactive HTML report of every @Preview composable with per-composable click-to-IDE deep-links. Powered by Compose's slot tree." />
+  <meta name="twitter:image" content="https://rohittp.com/plugables/og-image.png" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "headline": "codeview Gradle Plugin",
+        "description": "Generate an interactive HTML report of every @Preview composable with per-composable click-to-IDE deep-links.",
+        "url": "https://rohittp.com/plugables/codeview",
+        "datePublished": "2026-04-28",
+        "author": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" },
+        "publisher": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Plugables", "item": "https://rohittp.com/plugables/" },
+          { "@type": "ListItem", "position": 2, "name": "codeview", "item": "https://rohittp.com/plugables/codeview" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+<!-- ─── Navigation ─────────────────────────────────────────── -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="index" class="nav-brand">Plugables</a>
+    <div class="nav-links">
+      <a href="viewmodel-stub">viewmodel-stub</a>
+      <a href="typed-events">typed-events</a>
+      <a href="codeview">codeview</a>
+      <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- ─── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <nav class="toc">
+      <p class="toc-title">On this page</p>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#manifest" class="toc-h3">Manifest entry</a></li>
+        <li><a href="#unit-mode" class="toc-h3">Mode 1 — Unit (Robolectric)</a></li>
+        <li><a href="#instrumented-mode" class="toc-h3">Mode 2 — Instrumented</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#tasks">Gradle Tasks</a></li>
+        <li><a href="#example">Generated Test Example</a></li>
+        <li><a href="#why">Why It's Built This Way</a></li>
+        <li><a href="#limitations">Limitations</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ─── Content ──────────────────────────────────────────── -->
+  <main class="content">
+
+    <div class="breadcrumb">
+      <a href="index">Plugables</a>
+      <span class="breadcrumb-sep">/</span>
+      codeview
+    </div>
+
+    <header class="page-header">
+      <h1>codeview</h1>
+      <div class="page-badges">
+        <span class="badge badge-version">v0.1.0</span>
+        <span class="badge badge-platform">Android</span>
+        <span class="badge badge-kotlin">Kotlin</span>
+      </div>
+      <p class="page-lead">
+        Generate an interactive HTML report of every <code>@Preview</code> composable in your
+        Android module — with click-to-IDE deep-links <strong>per composable</strong>. Hover any
+        rectangle in the rendered preview to see its name and source line; click it to open
+        that exact line in IntelliJ, Android Studio, or VS Code.
+      </p>
+    </header>
+
+    <!-- ─── Overview ─────────────────────────────────────── -->
+    <section id="overview" class="doc-section">
+      <h2>Overview</h2>
+      <p>
+        Compose previews are great for designers but lossy for developers — when you see a
+        rendered screen, there's no way to jump from a button you can see to the
+        <code>Button(...)</code> call that produced it. Layout Inspector solves this on a
+        running device, but most preview review happens against a static screenshot in a PR
+        comment or design doc.
+      </p>
+      <p>
+        <strong>codeview</strong> bridges that gap. It generates a self-contained
+        <code>index.html</code> with every preview screenshotted, every composable overlaid,
+        and every overlay linked to the matching source line. No runtime dependency, no
+        custom annotations — just point it at your existing <code>@Preview</code> functions.
+      </p>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <strong>Slot-tree extraction</strong>
+          <p>Walks Compose's <code>CompositionData</code> via the same API Layout Inspector uses.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Two test modes</strong>
+          <p>Fast Robolectric (no PNG) or full instrumented (with real bitmaps).</p>
+        </div>
+        <div class="feature-item">
+          <strong>Self-contained HTML</strong>
+          <p>JSON inlined in <code>&lt;script&gt;</code>, PNGs alongside. Works from <code>file://</code>.</p>
+        </div>
+        <div class="feature-item">
+          <strong>IDE deep-links</strong>
+          <p>Per-overlay <code>idea://</code> or <code>vscode://</code> URLs. One click, one line.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Installation ─────────────────────────────────── -->
+    <section id="installation" class="doc-section">
+      <h2>Installation</h2>
+      <p>Add Maven Central to your plugin repositories in <code>settings.gradle.kts</code>:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">settings.gradle.kts</span>
+        <pre><code><span class="fn">pluginManagement</span> <span class="op">{</span>
+    <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">mavenCentral</span><span class="op">()</span>
+        <span class="fn">gradlePluginPortal</span><span class="op">()</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>Then apply the plugin in your Android module's <code>build.gradle.kts</code>:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">plugins</span> <span class="op">{</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.android.application"</span><span class="op">)</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"org.jetbrains.kotlin.plugin.compose"</span><span class="op">)</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.codeview"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"0.1.0"</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <div class="callout">
+        <p class="callout-title">Requires AGP 9.0+</p>
+        <p>
+          Generated tests are wired via the AGP <code>HasHostTests</code> /
+          <code>HasDeviceTests</code> APIs (Android Gradle Plugin 9.0+). For older AGP, pin
+          codeview to a future maintenance branch.
+        </p>
+      </div>
+
+      <h3 id="manifest">Manifest entry</h3>
+      <p>
+        codeview launches an <code>Activity</code> to host the preview render. AGP packages the
+        <strong>main</strong> manifest into the unit-test APK (test-only manifest entries are
+        ignored), and Robolectric (since <a href="https://github.com/robolectric/robolectric/pull/4736" target="_blank" rel="noopener noreferrer">PR #4736</a>) refuses to resolve activities
+        without a matching <code>MAIN/LAUNCHER</code> intent filter — even when the launch intent
+        names the activity explicitly. So you need a host activity in your <strong>main</strong>
+        manifest with a launcher filter that does <em>not</em> set its own content in
+        <code>onCreate()</code>. The simplest option is to declare
+        <code>androidx.activity.ComponentActivity</code> directly:
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">AndroidManifest.xml</span>
+        <pre><code>&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"&gt;
+    &lt;application&gt;
+        &lt;!-- Your real launcher activity --&gt;
+        &lt;activity android:name=".MainActivity" android:exported="true"&gt;
+            &lt;intent-filter&gt;
+                &lt;action android:name="android.intent.action.MAIN" /&gt;
+                &lt;category android:name="android.intent.category.LAUNCHER" /&gt;
+            &lt;/intent-filter&gt;
+        &lt;/activity&gt;
+
+        &lt;!-- Hosting activity for codeview test renders --&gt;
+        &lt;activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="true"
+            tools:replace="android:exported"&gt;
+            &lt;intent-filter&gt;
+                &lt;action android:name="android.intent.action.MAIN" /&gt;
+                &lt;category android:name="android.intent.category.LAUNCHER" /&gt;
+            &lt;/intent-filter&gt;
+        &lt;/activity&gt;
+    &lt;/application&gt;
+&lt;/manifest&gt;</code></pre>
+      </div>
+
+      <h3 id="unit-mode">Mode 1 — Unit (Robolectric, default)</h3>
+      <p>
+        Fastest setup. Generated tests run on the JVM via Robolectric, walk the slot tree,
+        and emit JSON sidecars. The HTML report renders all overlays, but the
+        <code>&lt;img&gt;</code> slot is empty — Robolectric's <code>WindowCapture.forceRedraw</code>
+        times out under headless graphics, so codeview catches the timeout and continues
+        with metadata only.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">android</span> <span class="op">{</span>
+    <span class="fn">testOptions</span> <span class="op">{</span>
+        <span class="fn">unitTests</span> <span class="op">{</span>
+            <span class="k">isIncludeAndroidResources</span> <span class="op">=</span> <span class="nm">true</span>
+            <span class="fn">all</span> <span class="op">{</span> <span class="fn">it</span><span class="op">.</span><span class="fn">useJUnit</span><span class="op">()</span> <span class="op">}</span>
+        <span class="op">}</span>
+    <span class="op">}</span>
+<span class="op">}</span>
+
+<span class="fn">dependencies</span> <span class="op">{</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="fn">platform</span><span class="op">(</span><span class="st">"androidx.compose:compose-bom:2026.04.01"</span><span class="op">))</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-test-junit4-android"</span><span class="op">)</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-test-manifest"</span><span class="op">)</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-tooling"</span><span class="op">)</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-tooling-data"</span><span class="op">)</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="st">"androidx.test.ext:junit:1.3.0"</span><span class="op">)</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="st">"org.robolectric:robolectric:4.16.1"</span><span class="op">)</span>
+    <span class="fn">testImplementation</span><span class="op">(</span><span class="st">"junit:junit:4.13.2"</span><span class="op">)</span>
+<span class="op">}</span>
+
+<span class="fn">codeview</span> <span class="op">{</span>
+    <span class="k">ideScheme</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"idea"</span><span class="op">)</span>  <span class="cm">// or "vscode"</span>
+    <span class="k">testActivityClass</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"androidx.activity.ComponentActivity"</span><span class="op">)</span>
+    <span class="cm">// testMode defaults to "unit"</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <h3 id="instrumented-mode">Mode 2 — Instrumented (real device, real PNGs)</h3>
+      <p>
+        Renders previews on an emulator or connected device, capturing real RGBA bitmaps.
+        Sidecars are written to the app's <code>externalCacheDir</code>, republished to
+        <code>/sdcard/codeview-sidecars/</code> via <code>UiAutomation.executeShellCommand</code>
+        (so they survive AGP's post-test app uninstall), then pulled back to the host via
+        <code>adb pull</code>.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">android</span> <span class="op">{</span>
+    <span class="fn">defaultConfig</span> <span class="op">{</span>
+        <span class="k">testInstrumentationRunner</span> <span class="op">=</span> <span class="st">"androidx.test.runner.AndroidJUnitRunner"</span>
+    <span class="op">}</span>
+<span class="op">}</span>
+
+<span class="fn">composeCompiler</span> <span class="op">{</span>
+    <span class="k">includeSourceInformation</span> <span class="op">=</span> <span class="nm">true</span>
+<span class="op">}</span>
+
+<span class="fn">dependencies</span> <span class="op">{</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="fn">platform</span><span class="op">(</span><span class="st">"androidx.compose:compose-bom:2026.04.01"</span><span class="op">))</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-test-junit4-android"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-tooling"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-tooling-data"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test:runner:1.7.0"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test:rules:1.7.0"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test.ext:junit:1.3.0"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"junit:junit:4.13.2"</span><span class="op">)</span>
+    <span class="fn">debugImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-test-manifest"</span><span class="op">)</span>
+<span class="op">}</span>
+
+<span class="fn">codeview</span> <span class="op">{</span>
+    <span class="k">ideScheme</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"idea"</span><span class="op">)</span>
+    <span class="k">testActivityClass</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"androidx.activity.ComponentActivity"</span><span class="op">)</span>
+    <span class="k">testMode</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"instrumented"</span><span class="op">)</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>Then run the report — codeview will install + run on whichever emulator <code>adb devices</code> shows:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">terminal</span>
+        <pre><code>./gradlew :app:codeviewReportDebug</code></pre>
+      </div>
+    </section>
+
+    <!-- ─── How It Works ─────────────────────────────────── -->
+    <section id="how-it-works" class="doc-section">
+      <h2>How It Works</h2>
+      <p>
+        codeview registers a generation task that scans your Kotlin sources for
+        <code>@Preview</code> functions and writes a JUnit test class per preview into the
+        appropriate test source set. Each generated test renders the preview, walks
+        Compose's slot tree to extract every composable's bounds and source location, captures
+        a bitmap, and writes a JSON sidecar. A second task aggregates the sidecars + PNGs
+        into a single self-contained <code>index.html</code>.
+      </p>
+
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <strong>Discover</strong>
+          <span>@Preview functions</span>
+        </div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step">
+          <strong>Generate</strong>
+          <span>JUnit test per preview</span>
+        </div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step">
+          <strong>Render</strong>
+          <span>Compose UI test</span>
+        </div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step">
+          <strong>Walk</strong>
+          <span>slot tree → JSON</span>
+        </div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step">
+          <strong>Assemble</strong>
+          <span>HTML report</span>
+        </div>
+      </div>
+
+      <p>
+        The slot-tree walk uses <code>androidx.compose.ui.tooling.data.mapTree</code>, the
+        same API Layout Inspector uses internally. Source positions come from
+        Compose's <code>sourceInformation</code> markers (default-on for debug builds);
+        codeview does not author its own compiler plugin. Composable groups whose source
+        file resolves to a path under your <code>sourceDirs</code> become clickable
+        overlays; Compose-internal call sites (<code>BasicText.kt</code>, <code>Layout.kt</code>,
+        etc.) are filtered out so the report stays focused on <em>your</em> code.
+      </p>
+    </section>
+
+    <!-- ─── Configuration ────────────────────────────────── -->
+    <section id="configuration" class="doc-section">
+      <h2>Configuration</h2>
+      <p>The <code>codeview</code> DSL block exposes these properties:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Type</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>sourceDirs</code></td>
+              <td><code>ConfigurableFileCollection</code></td>
+              <td><code>src/main/kotlin</code></td>
+              <td>Directories scanned for <code>*.kt</code> files containing <code>@Preview</code> functions.</td>
+            </tr>
+            <tr>
+              <td><code>outputDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td><code>build/reports/codeview</code></td>
+              <td>Where the assembled HTML report is written. Each variant gets a subdirectory.</td>
+            </tr>
+            <tr>
+              <td><code>ideScheme</code></td>
+              <td><code>Property&lt;String&gt;</code></td>
+              <td><code>"idea"</code></td>
+              <td>URL scheme for source links. <code>"idea"</code> for JetBrains IDEs, <code>"vscode"</code> for VS Code.</td>
+            </tr>
+            <tr>
+              <td><code>testActivityClass</code></td>
+              <td><code>Property&lt;String&gt;</code></td>
+              <td>—</td>
+              <td>FQN of an Activity registered in your main manifest with a <code>MAIN/LAUNCHER</code> filter. Required.</td>
+            </tr>
+            <tr>
+              <td><code>testMode</code></td>
+              <td><code>Property&lt;String&gt;</code></td>
+              <td><code>"unit"</code></td>
+              <td>Either <code>"unit"</code> (Robolectric, no PNG) or <code>"instrumented"</code> (device, with PNG).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── Tasks ────────────────────────────────────────── -->
+    <section id="tasks" class="doc-section">
+      <h2>Gradle Tasks</h2>
+      <p>codeview registers these tasks per Android variant:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>generateCodeviewPreviewTests</code></td>
+              <td>Discover <code>@Preview</code>s and emit one JUnit test class per preview, plus a runtime helper. Writes <code>preview-index.json</code>.</td>
+            </tr>
+            <tr>
+              <td><code>pullCodeviewSidecars{Variant}</code></td>
+              <td>(Instrumented mode only) <code>adb pull</code>s sidecars from <code>/sdcard/codeview-sidecars</code> after <code>connected{Variant}AndroidTest</code>.</td>
+            </tr>
+            <tr>
+              <td><code>codeviewReport{Variant}</code></td>
+              <td>Joins sidecars + PNGs + the preview index, renders the HTML report. Logs the absolute <code>file://</code> path on success.</td>
+            </tr>
+            <tr>
+              <td><code>codeviewReport</code></td>
+              <td>Aggregates all variants' reports.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Each <code>codeviewReport{Variant}</code> depends transitively on the right test
+        task — running <code>./gradlew :app:codeviewReportDebug</code> alone will build,
+        run the tests, pull sidecars (instrumented mode), and write the HTML in one shot.
+      </p>
+    </section>
+
+    <!-- ─── Generated Test Example ──────────────────────────── -->
+    <section id="example" class="doc-section">
+      <h2>Generated Test Example</h2>
+      <p>
+        Given a sample preview in your code:
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="op">@</span><span class="ty">Preview</span><span class="op">(</span><span class="fn">showBackground</span> <span class="op">=</span> <span class="nm">true</span><span class="op">)</span>
+<span class="op">@</span><span class="ty">Composable</span>
+<span class="k">fun</span> <span class="fn">HomeScreenPreview</span><span class="op">() {</span> <span class="fn">HomeScreen</span><span class="op">()</span> <span class="op">}</span></code></pre>
+      </div>
+
+      <p>codeview generates a test class like this (instrumented mode shown):</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin</span>
+        <pre><code><span class="cm">// AUTO-GENERATED by codeview. Do not edit.</span>
+<span class="op">@file:</span><span class="fn">OptIn</span><span class="op">(</span><span class="ty">ExperimentalTestApi</span><span class="op">::</span><span class="k">class</span><span class="op">)</span>
+<span class="k">package</span> <span class="ty">com.rohittp.plugables.codeview.generated</span>
+
+<span class="k">import</span> <span class="ty">androidx.compose.ui.test.runAndroidComposeUiTest</span>
+<span class="k">import</span> <span class="ty">androidx.test.ext.junit.runners.AndroidJUnit4</span>
+<span class="k">import</span> <span class="ty">androidx.test.platform.app.InstrumentationRegistry</span>
+<span class="k">import</span> <span class="ty">org.junit.Test</span>
+<span class="k">import</span> <span class="ty">org.junit.runner.RunWith</span>
+
+<span class="op">@</span><span class="fn">RunWith</span><span class="op">(</span><span class="ty">AndroidJUnit4</span><span class="op">::</span><span class="k">class</span><span class="op">)</span>
+<span class="k">class</span> <span class="ty">Codeview_HomeScreenPreview_0Test</span> <span class="op">{</span>
+
+    <span class="op">@</span><span class="ty">Test</span>
+    <span class="k">fun</span> <span class="fn">render</span><span class="op">()</span> <span class="op">=</span> <span class="fn">runAndroidComposeUiTest</span><span class="op">(</span>
+        <span class="fn">activityClass</span> <span class="op">=</span> <span class="ty">ComponentActivity</span><span class="op">::</span><span class="k">class</span><span class="op">.</span><span class="k">java</span>
+    <span class="op">) {</span>
+        <span class="k">val</span> <span class="fn">ctx</span> <span class="op">=</span> <span class="ty">InstrumentationRegistry</span><span class="op">.</span><span class="fn">getInstrumentation</span><span class="op">().</span><span class="k">targetContext</span>
+        <span class="k">val</span> <span class="fn">outputDir</span> <span class="op">=</span> <span class="ty">File</span><span class="op">(</span><span class="fn">ctx</span><span class="op">.</span><span class="k">externalCacheDir</span><span class="op">,</span> <span class="st">"codeview"</span><span class="op">).</span><span class="fn">apply</span> <span class="op">{</span> <span class="fn">mkdirs</span><span class="op">()</span> <span class="op">}</span>
+        <span class="ty">CodeviewRuntime</span><span class="op">.</span><span class="fn">renderAndCapture</span><span class="op">(</span>
+            <span class="fn">uiTest</span> <span class="op">=</span> <span class="k">this</span><span class="op">,</span>
+            <span class="fn">outputDir</span> <span class="op">=</span> <span class="fn">outputDir</span><span class="op">,</span>
+            <span class="fn">previewId</span> <span class="op">=</span> <span class="st">"Codeview_HomeScreenPreview_0"</span><span class="op">,</span>
+            <span class="fn">previewFqn</span> <span class="op">=</span> <span class="st">"com.example.HomeScreenPreview"</span><span class="op">,</span>
+            <span class="fn">previewDisplayName</span> <span class="op">=</span> <span class="st">"HomeScreenPreview"</span><span class="op">,</span>
+            <span class="fn">previewSourceFile</span> <span class="op">=</span> <span class="st">"/abs/path/HomeScreen.kt"</span><span class="op">,</span>
+            <span class="fn">previewSourceLine</span> <span class="op">=</span> <span class="nm">19</span><span class="op">,</span>
+        <span class="op">) {</span> <span class="fn">com.example.HomeScreenPreview</span><span class="op">()</span> <span class="op">}</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        The shared <code>CodeviewRuntime</code> helper (also generated, into the same
+        package) wraps the content in Compose's <code>Inspectable</code>, walks the resulting
+        slot tree via <code>mapTree</code>, captures the bitmap, and writes a per-preview
+        JSON sidecar.
+      </p>
+    </section>
+
+    <!-- ─── Why It's Built This Way ─────────────────────────── -->
+    <section id="why" class="doc-section">
+      <h2>Why It's Built This Way</h2>
+      <p>
+        Five non-obvious things forced the current shape of the plugin. They're worth
+        knowing if you ever need to debug a setup or extend the plugin:
+      </p>
+
+      <ol>
+        <li>
+          <strong>The unit-test APK uses your main <code>AndroidManifest.xml</code>, not the
+          merged unit-test one.</strong> AGP packages
+          <code>apk-for-local-test.ap_</code> from the main source set; entries you put under
+          <code>src/test/AndroidManifest.xml</code> never reach Robolectric's
+          <code>PackageManager</code>. That's why <code>testActivityClass</code> must point at
+          an activity already registered in main.
+        </li>
+        <li>
+          <strong>Robolectric PR #4736 enforces strict activity resolution.</strong> Even with
+          an explicit component (<code>cmp=...</code>) in the launch intent, it requires the
+          activity at that component to have a matching <code>MAIN/LAUNCHER</code> intent
+          filter. Hence the manifest snippet above.
+        </li>
+        <li>
+          <strong><code>LocalInspectionTables</code> alone doesn't populate the slot table.</strong>
+          You also need to add <code>currentComposer.compositionData</code> to the set inside
+          the composition itself — that's the same pattern Layout Inspector uses internally.
+          codeview wraps content in Compose's official <code>Inspectable</code> helper to
+          handle this.
+        </li>
+        <li>
+          <strong>AGP uninstalls the app after <code>connected*AndroidTest</code>.</strong>
+          Anything written to the app's <code>externalCacheDir</code> is gone before the host
+          can <code>adb pull</code> it. The instrumented helper republishes sidecars to
+          <code>/sdcard/codeview-sidecars/</code> from inside the test process, using
+          <code>UiAutomation.executeShellCommand</code> (uid 2000, has write access to
+          <code>/sdcard</code>).
+        </li>
+        <li>
+          <strong>In Compose 1.11+, <code>Group.location</code> is no longer populated.</strong>
+          The new way to read source positions is the <code>mapTree</code> API with a
+          <code>SourceContext</code> callback parameter. codeview uses that path; older versions
+          using <code>Group.location</code> would silently return <code>null</code> for every
+          composable.
+        </li>
+      </ol>
+    </section>
+
+    <!-- ─── Limitations ─────────────────────────────────────── -->
+    <section id="limitations" class="doc-section">
+      <h2>Limitations</h2>
+      <ul>
+        <li>
+          <strong>Unit mode emits no PNGs.</strong> <code>captureToImage()</code> times out
+          under Robolectric's headless graphics mode. Use <code>testMode = "instrumented"</code>
+          if you need bitmaps. The slot-tree data is still extracted in unit mode, so overlays
+          and source links work — only the screenshot is missing.
+        </li>
+        <li>
+          <strong>Source-line precision</strong> stops at what Compose's <code>sourceInformation</code>
+          records — typically the call site of each composable. Lambda contents (e.g. inside
+          <code>Text("foo")</code>) resolve to the <code>Text(...)</code> call site, not the
+          string literal.
+        </li>
+        <li>
+          Only JetBrains <code>idea://</code> and VS Code <code>vscode://</code> URL schemes
+          are supported. Browser must register the protocol handler.
+        </li>
+        <li>
+          <code>androidx.compose.ui.tooling.data</code> is <code>@UiToolingDataApi</code>
+          (experimental). Bumping Compose may require codeview to follow.
+        </li>
+        <li>
+          <code>@PreviewParameter</code> variants render as separate sequenced entries
+          (<code>_0</code>, <code>_1</code>, …).
+        </li>
+        <li>
+          Instrumented mode requires a device or emulator at run time; CI must provision one
+          (managed devices, GMD, or a separate emulator step). When multiple devices are
+          attached, codeview targets the first emulator it finds.
+        </li>
+      </ul>
+
+      <div class="callout">
+        <p class="callout-title">Future work</p>
+        <p>
+          Auto-discovery of an existing <code>MAIN/LAUNCHER</code> activity (so
+          <code>testActivityClass</code> becomes optional), <code>androidx.test.services.storage</code>
+          to replace the <code>/sdcard</code> republish hack, runtime IDE-scheme switcher in
+          the report UI, and multi-module aggregation are all on the roadmap.
+        </p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ─── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index" class="footer-brand">Plugables</a>
+    <span class="footer-meta">com.rohittp.plugables.codeview · v0.1.0</span>
+    <div class="footer-links">
+      <a href="https://github.com/rohittp0/plugables/tree/main/codeview" target="_blank" rel="noopener noreferrer">Source</a>
+      <a href="typed-events">← typed-events</a>
+      <a href="index">All plugins</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
