@@ -33,4 +33,6 @@ data class RenderedPreview(
     val spec: PreviewSpec,
     val imagePath: String?,
     val nodes: List<NodeInfo>,
+    /** Plain text strings actually shown on screen, sourced from the Compose semantics tree. */
+    val renderedTexts: List<String>,
 )

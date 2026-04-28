@@ -381,12 +381,16 @@
   const previews = data.previews || [];
   const previewById = new Map(previews.map(function (p) { return [p.id, p]; }));
 
-  // Pre-compute searchable text for each preview: displayName + node names + code snippets.
+  // Pre-compute searchable text for each preview: displayName + node names +
+  // *rendered* text strings sourced from the Compose semantics tree (so things like
+  // R.string lookups, lambda-evaluated strings, and dynamic content all match).
   previews.forEach(function (p) {
     const parts = [p.displayName.toLowerCase()];
     (p.nodes || []).forEach(function (n) {
       if (n.name) parts.push(String(n.name).toLowerCase());
-      if (n.codeSnippet) parts.push(String(n.codeSnippet).toLowerCase());
+    });
+    (p.renderedTexts || []).forEach(function (t) {
+      if (t) parts.push(String(t).toLowerCase());
     });
     p._search = parts.join("\n");
   });
@@ -521,19 +525,21 @@
         "<span class='dot'>•</span>" +
         "<span>" + visibleNodes + " linked</span>";
 
-      // If there's a query, surface the first matching code snippet.
+      // If there's a query, surface the first matching rendered text excerpt
+      // (or fall back to a node name).
       if (query) {
-        const hit = (p.nodes || []).find(function (n) {
-          return (n.codeSnippet && n.codeSnippet.toLowerCase().indexOf(query) !== -1)
-              || (n.name && n.name.toLowerCase().indexOf(query) !== -1);
+        const hitText = (p.renderedTexts || []).find(function (t) {
+          return t && t.toLowerCase().indexOf(query) !== -1;
         });
-        if (hit && hit.codeSnippet) {
+        const excerpt = hitText
+          || (p.nodes || []).map(function (n) { return n.name; })
+              .find(function (name) { return name && name.toLowerCase().indexOf(query) !== -1; });
+        if (excerpt) {
           const m = document.createElement("p");
           m.className = "card-sub";
           m.style.marginTop = "8px";
-          m.style.fontFamily = '"SF Mono", Menlo, Consolas, monospace';
           m.style.color = "var(--text-muted)";
-          m.appendChild(highlightedFragment(hit.codeSnippet, query));
+          m.appendChild(highlightedFragment(excerpt, query));
           body.appendChild(title);
           body.appendChild(sub);
           body.appendChild(m);

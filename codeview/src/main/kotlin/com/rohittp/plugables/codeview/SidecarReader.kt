@@ -16,6 +16,7 @@ object SidecarReader {
         val imageWidth: Int,
         val imageHeight: Int,
         val nodes: List<RawNode>,
+        val renderedTexts: List<String>,
     )
 
     fun read(json: String): Parsed {
@@ -41,7 +42,17 @@ object SidecarReader {
                 parentId = if (m.groupValues[11] == "null") null else m.groupValues[11].toInt(),
             ))
         }
-        return Parsed(w, h, nodes)
+        return Parsed(w, h, nodes, parseRenderedTexts(json))
+    }
+
+    private fun parseRenderedTexts(json: String): List<String> {
+        // Pull "renderedTexts":[ ... ] block, then split into individual JSON-quoted strings.
+        val block = Regex("\"renderedTexts\":\\[((?:[^\\[\\]]|\\\\.)*)\\]").find(json)?.groupValues?.get(1) ?: return emptyList()
+        val out = mutableListOf<String>()
+        for (m in Regex("\"((?:[^\"\\\\]|\\\\.)*)\"").findAll(block)) {
+            out.add(m.groupValues[1].unescape())
+        }
+        return out
     }
 
     private fun String.unescape(): String =

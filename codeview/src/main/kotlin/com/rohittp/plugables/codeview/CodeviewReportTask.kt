@@ -56,7 +56,7 @@ abstract class CodeviewReportTask : DefaultTask() {
         for (spec in previews) {
             val sidecarFile = File(sidecarRoot, "${spec.id}.json")
             if (!sidecarFile.exists()) {
-                rendered.add(RenderedPreview(spec, imagePath = null, nodes = emptyList()))
+                rendered.add(RenderedPreview(spec, imagePath = null, nodes = emptyList(), renderedTexts = emptyList()))
                 continue
             }
             val parsed = SidecarReader.read(sidecarFile.readText())
@@ -88,7 +88,7 @@ abstract class CodeviewReportTask : DefaultTask() {
                 "previews/${spec.id}.png"
             } else null
 
-            rendered.add(RenderedPreview(spec, imagePath, nodes))
+            rendered.add(RenderedPreview(spec, imagePath, nodes, parsed.renderedTexts))
         }
 
         val html = HtmlReportRenderer.render(rendered, dimensions, ideScheme.get())

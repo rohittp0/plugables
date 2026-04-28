@@ -12,6 +12,9 @@ import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.tooling.CompositionData
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onRoot
@@ -71,6 +74,17 @@ object CodeviewRuntime {
             }, cache)
         }
 
+        // Walk the semantics tree to collect the rendered text strings — these are the
+        // strings actually displayed on screen, after R.string lookups, lambdas, and any
+        // other runtime substitution. Used by the report's search box.
+        val renderedTexts = mutableListOf<String>()
+        try {
+            val rootSem = uiTest.onRoot().fetchSemanticsNode()
+            collectRenderedText(rootSem, renderedTexts)
+        } catch (t: Throwable) {
+            System.err.println("[codeview] Could not collect semantics text for $previewId: ${t.message}")
+        }
+
         outputDir.mkdirs()
 
         var bitmapWidth = 0
@@ -95,6 +109,7 @@ object CodeviewRuntime {
             imageWidth = bitmapWidth,
             imageHeight = bitmapHeight,
             nodes = nodes,
+            renderedTexts = renderedTexts,
         ))
 
         // For instrumented runs the app is uninstalled by AGP after the test, so files in
@@ -131,6 +146,27 @@ object CodeviewRuntime {
         var parentId: Int?,
     )
 
+    /**
+     * Walks the semantics tree and appends every visible text-bearing string to [out].
+     * Text comes from `Text` (rendered AnnotatedStrings), `EditableText` (TextField content),
+     * and `ContentDescription`. Empty/blank strings are skipped.
+     */
+    private fun collectRenderedText(node: SemanticsNode, out: MutableList<String>) {
+        val cfg = node.config
+        cfg.getOrNull(SemanticsProperties.Text)?.forEach { ann ->
+            val s = ann.text
+            if (s.isNotBlank()) out.add(s)
+        }
+        cfg.getOrNull(SemanticsProperties.EditableText)?.let { ann ->
+            val s = ann.text
+            if (s.isNotBlank()) out.add(s)
+        }
+        cfg.getOrNull(SemanticsProperties.ContentDescription)?.forEach { s ->
+            if (s.isNotBlank()) out.add(s)
+        }
+        node.children.forEach { collectRenderedText(it, out) }
+    }
+
     private fun buildJson(
         previewId: String,
         previewFqn: String,
@@ -140,6 +176,7 @@ object CodeviewRuntime {
         imageWidth: Int,
         imageHeight: Int,
         nodes: List<NodeJson>,
+        renderedTexts: List<String>,
     ): String = buildString {
         append("{")
         append("\"schemaVersion\":1,")
@@ -150,6 +187,9 @@ object CodeviewRuntime {
         append("\"sourceLine\":").append(previewSourceLine).append(',')
         append("\"imageWidth\":").append(imageWidth).append(',')
         append("\"imageHeight\":").append(imageHeight).append(',')
+        append("\"renderedTexts\":[")
+        append(renderedTexts.joinToString(",") { j(it) })
+        append("],")
         append("\"nodes\":[")
         append(nodes.joinToString(",") { n ->
             buildString {
