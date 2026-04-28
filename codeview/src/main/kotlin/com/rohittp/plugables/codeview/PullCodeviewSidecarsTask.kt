@@ -15,6 +15,12 @@ abstract class PullCodeviewSidecarsTask @Inject constructor(
     private val exec: ExecOperations,
 ) : DefaultTask() {
 
+    init {
+        // Output depends on device state, not declared inputs. Always re-pull so any code
+        // change that's already been re-tested produces a fresh report.
+        outputs.upToDateWhen { false }
+    }
+
     @get:Input
     abstract val applicationId: Property<String>
 
