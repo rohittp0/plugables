@@ -5,6 +5,7 @@ plugins {
     id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
+group = "com.rohittp.plugables"
 version = "0.1.0"
 
 kotlin {
