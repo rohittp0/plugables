@@ -53,7 +53,7 @@ You need an `Activity` registered in your **main** `AndroidManifest.xml` with a 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "0.1.0"
+    id("com.rohittp.plugables.codeview") version "1.0.0"
 }
 
 android {
@@ -92,7 +92,7 @@ Run: `./gradlew :app:codeviewReportDebug`. The report will list every preview wi
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "0.1.0"
+    id("com.rohittp.plugables.codeview") version "1.0.0"
 }
 
 android {
@@ -135,7 +135,14 @@ Either mode runs as a single command:
 ./gradlew :app:codeviewReportDebug
 ```
 
-The task logs the absolute path and a `file://` URL of the generated `index.html` on completion — open it in any browser.
+The task logs the absolute path and a `file://` URL of the generated `index.html` on completion, and (by default) opens the report in your default browser via `open` / `xdg-open` / `cmd /c start`. Disable that with `codeview { openOnComplete.set(false) }` in CI.
+
+## What you get in the HTML
+
+- **Home** — a responsive grid of cards (one per `@Preview`), each showing the rendered screenshot, the preview name, and a node count.
+- **Search** — the search box on the home page filters by preview name, slot-tree node names, and the *rendered* text strings collected from Compose's semantics tree. So if your code says `Text(stringResource(R.string.welcome))` and the resolved value is "Welcome back", searching `welcome back` finds the preview.
+- **Detail view** — clicking a card navigates to `#preview-id` and shows the screenshot at full resolution. A sidebar lists every other preview (one click to switch) and an **← All previews** link returns to the grid. URLs are shareable; browser back/forward work.
+- **Hover tooltip** — every clickable overlay shows a tooltip with the composable name, the file:line label, and the actual line of Kotlin source from your project. Click the overlay to deep-link into your IDE at that exact line.
 
 ## Why this is the way it is
 

@@ -37,6 +37,7 @@
         "description": "Generate an interactive HTML report of every @Preview composable with per-composable click-to-IDE deep-links.",
         "url": "https://rohittp.com/plugables/codeview",
         "datePublished": "2026-04-28",
+        "dateModified": "2026-04-28",
         "author": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" },
         "publisher": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" }
       },
@@ -79,6 +80,7 @@
         <li><a href="#unit-mode" class="toc-h3">Mode 1 — Unit (Robolectric)</a></li>
         <li><a href="#instrumented-mode" class="toc-h3">Mode 2 — Instrumented</a></li>
         <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#report-ui">The HTML Report</a></li>
         <li><a href="#configuration">Configuration</a></li>
         <li><a href="#tasks">Gradle Tasks</a></li>
         <li><a href="#example">Generated Test Example</a></li>
@@ -100,7 +102,7 @@
     <header class="page-header">
       <h1>codeview</h1>
       <div class="page-badges">
-        <span class="badge badge-version">v0.1.0</span>
+        <span class="badge badge-version">v1.0.0</span>
         <span class="badge badge-platform">Android</span>
         <span class="badge badge-kotlin">Kotlin</span>
       </div>
@@ -146,6 +148,14 @@
           <strong>IDE deep-links</strong>
           <p>Per-overlay <code>idea://</code> or <code>vscode://</code> URLs. One click, one line.</p>
         </div>
+        <div class="feature-item">
+          <strong>Searchable rendered text</strong>
+          <p>Search the report for what users <em>see</em>, not what the source <em>says</em>. <code>R.string</code>-resolved.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Auto-opens the report</strong>
+          <p>The HTML pops in your browser on success. Light/dark themed via <code>prefers-color-scheme</code>.</p>
+        </div>
       </div>
     </section>
 
@@ -171,7 +181,7 @@
         <pre><code><span class="fn">plugins</span> <span class="op">{</span>
     <span class="k">id</span><span class="op">(</span><span class="st">"com.android.application"</span><span class="op">)</span>
     <span class="k">id</span><span class="op">(</span><span class="st">"org.jetbrains.kotlin.plugin.compose"</span><span class="op">)</span>
-    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.codeview"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"0.1.0"</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.codeview"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
 <span class="op">}</span></code></pre>
       </div>
 
@@ -357,6 +367,69 @@
         overlays; Compose-internal call sites (<code>BasicText.kt</code>, <code>Layout.kt</code>,
         etc.) are filtered out so the report stays focused on <em>your</em> code.
       </p>
+      <p>
+        Alongside the slot tree, codeview also walks the Compose <strong>semantics
+        tree</strong> and ships every visible text string in the sidecar — <code>Text</code>
+        content, <code>TextField</code> editable text, <code>contentDescription</code>. By
+        the time these strings hit the JSON they have already been through
+        <code>R.string</code> resolution, lambda evaluation, and any other runtime
+        substitution, so the search box matches what your users actually <em>see</em>, not
+        what the source file <em>says</em>.
+      </p>
+    </section>
+
+    <!-- ─── Report UI ─────────────────────────────────────── -->
+    <section id="report-ui" class="doc-section">
+      <h2>The HTML Report</h2>
+      <p>
+        The generated <code>index.html</code> is a self-contained single-page app — JSON is
+        inlined in a <code>&lt;script type="application/json"&gt;</code> tag, PNGs sit
+        alongside under <code>previews/</code>. Open it from anywhere; no server required.
+      </p>
+
+      <h3>Home — preview grid</h3>
+      <p>
+        The landing page shows every <code>@Preview</code> as a card with its rendered
+        screenshot, name, and node count. Cards are responsive, clickable, and the search
+        box at the top filters them in real time. Search matches against:
+      </p>
+      <ul>
+        <li>the <code>@Preview</code> function name (e.g. <code>HomeScreenPreview</code>),</li>
+        <li>every slot-tree node name (e.g. <code>Text</code>, <code>Button</code>, <code>Column</code>),</li>
+        <li>every visible string from the semantics tree — <em>after</em>
+            <code>R.string</code> lookups, so a search for "welcome back" finds a preview
+            whose source reads <code>Text(stringResource(R.string.welcome))</code>.</li>
+      </ul>
+      <p>
+        When the query matches a rendered string, the matching card surfaces a short
+        excerpt of that text with the matched substring highlighted.
+      </p>
+
+      <h3>Detail — single preview with sidebar</h3>
+      <p>
+        Clicking a card navigates to <code>#preview-id</code> and shows the screenshot at
+        full resolution. A 240px sidebar lists every other preview by name (one click to
+        switch), and a <strong>← All previews</strong> link in the top bar returns to the
+        grid. Browser back/forward work; URLs are shareable.
+      </p>
+
+      <h3>Hover — line-of-source tooltip</h3>
+      <p>
+        Each composable that resolved to a file in your <code>sourceDirs</code> renders as
+        a clickable rectangle on top of the screenshot. Overlapping overlays are sorted
+        smallest-on-top so the most specific composable wins hover. Hovering shows a
+        tooltip with the composable name, the file:line label, and the actual line of
+        Kotlin from your project — no IDE jump needed to see the call. Clicking the
+        overlay deep-links to that line.
+      </p>
+
+      <h3>Auto-open</h3>
+      <p>
+        On a successful <code>codeviewReport</code> run, the plugin shells out to
+        <code>open</code> (macOS), <code>xdg-open</code> (Linux), or <code>cmd /c start</code>
+        (Windows) to load the report in your default browser. Disable with
+        <code>codeview { openOnComplete.set(false) }</code> in CI or other headless contexts.
+      </p>
     </section>
 
     <!-- ─── Configuration ────────────────────────────────── -->
@@ -404,6 +477,12 @@
               <td><code>Property&lt;String&gt;</code></td>
               <td><code>"unit"</code></td>
               <td>Either <code>"unit"</code> (Robolectric, no PNG) or <code>"instrumented"</code> (device, with PNG).</td>
+            </tr>
+            <tr>
+              <td><code>openOnComplete</code></td>
+              <td><code>Property&lt;Boolean&gt;</code></td>
+              <td><code>true</code></td>
+              <td>If true, the generated <code>index.html</code> is opened in the default browser when the report task finishes. Set to <code>false</code> in CI.</td>
             </tr>
           </tbody>
         </table>
@@ -610,7 +689,7 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <a href="index" class="footer-brand">Plugables</a>
-    <span class="footer-meta">com.rohittp.plugables.codeview · v0.1.0</span>
+    <span class="footer-meta">com.rohittp.plugables.codeview · v1.0.0</span>
     <div class="footer-links">
       <a href="https://github.com/rohittp0/plugables/tree/main/codeview" target="_blank" rel="noopener noreferrer">Source</a>
       <a href="typed-events">← typed-events</a>
