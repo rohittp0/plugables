@@ -8,9 +8,13 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.process.ExecOperations
+import org.gradle.work.DisableCachingByDefault
 import java.io.File
 import javax.inject.Inject
 
+@DisableCachingByDefault(
+    because = "Pulls files from a connected device; output depends on device state, not declared inputs."
+)
 abstract class PullCodeviewSidecarsTask @Inject constructor(
     private val exec: ExecOperations,
 ) : DefaultTask() {
