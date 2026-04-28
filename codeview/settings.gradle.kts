@@ -1,5 +1,4 @@
 pluginManagement {
-    includeBuild("codeview")
     repositories {
         gradlePluginPortal()
         google()
@@ -15,11 +14,4 @@ dependencyResolutionManagement {
     }
 }
 
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
-
-rootProject.name = "plugables"
-include(":viewmodel-stub")
-include(":typed-events")
-include(":sample-app")
+rootProject.name = "codeview"

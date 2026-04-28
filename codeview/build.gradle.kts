@@ -2,10 +2,10 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     `kotlin-dsl`
-    id("com.vanniktech.maven.publish")
+    id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
-version = "1.0.0"
+version = "0.1.0"
 
 kotlin {
     compilerOptions {
@@ -20,18 +20,18 @@ java {
 
 dependencies {
     compileOnly("com.android.tools.build:gradle:9.2.0")
-    implementation("org.yaml:snakeyaml:2.6")
     testImplementation(kotlin("test"))
+    testImplementation(gradleTestKit())
 }
 
 gradlePlugin {
     plugins {
-        create("typedEvents") {
-            id = "com.rohittp.plugables.typed-events"
-            displayName = "TypedEvents"
-            description = "Generates type-safe Kotlin event classes from a YAML schema for Android projects."
-            tags = listOf("android", "kotlin", "events", "codegen")
-            implementationClass = "com.rohittp.plugables.typedevents.TypedEventsPlugin"
+        create("codeView") {
+            id = "com.rohittp.plugables.codeview"
+            displayName = "CodeView"
+            description = "Generates an interactive HTML report of @Preview screens with per-composable click-to-IDE overlays."
+            tags = listOf("android", "kotlin", "compose", "preview", "report", "tooling")
+            implementationClass = "com.rohittp.plugables.codeview.CodeViewPlugin"
         }
     }
 }
@@ -41,8 +41,8 @@ mavenPublishing {
     signAllPublications()
 
     pom {
-        name.set("TypedEvents")
-        description.set("Generates type-safe Kotlin event classes from a YAML schema for Android projects.")
+        name.set("CodeView")
+        description.set("Generates an interactive HTML report of @Preview screens with per-composable click-to-IDE overlays.")
         url.set("https://github.com/rohittp0/plugables")
         licenses {
             license {
