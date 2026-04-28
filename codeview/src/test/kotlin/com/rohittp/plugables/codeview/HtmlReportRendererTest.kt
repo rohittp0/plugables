@@ -19,6 +19,7 @@ class HtmlReportRendererTest {
             bounds = Bounds(10, 20, 100, 40),
             source = SourceLocation("/abs/Home.kt", 18),
             parentId = null,
+            codeSnippet = "Text(\"Hello\")",
         )
     )
 

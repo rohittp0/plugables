@@ -33,10 +33,17 @@ abstract class CodeViewExtension @Inject constructor(layout: ProjectLayout) {
      */
     abstract val testMode: Property<String>
 
+    /**
+     * If true (default), the report task will open the generated `index.html` in the system's
+     * default browser on completion. Set to false in CI / headless environments.
+     */
+    abstract val openOnComplete: Property<Boolean>
+
     init {
         sourceDirs.from(layout.projectDirectory.dir("src/main/kotlin"))
         outputDir.convention(layout.buildDirectory.dir("reports/codeview"))
         ideScheme.convention("idea")
         testMode.convention("unit")
+        openOnComplete.convention(true)
     }
 }

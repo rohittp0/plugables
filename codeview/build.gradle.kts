@@ -2,10 +2,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     `kotlin-dsl`
-    id("com.vanniktech.maven.publish") version "0.36.0"
+    id("com.vanniktech.maven.publish")
 }
 
-group = "com.rohittp.plugables"
 version = "0.1.0"
 
 kotlin {
@@ -39,7 +38,10 @@ gradlePlugin {
 
 mavenPublishing {
     publishToMavenCentral()
-    signAllPublications()
+    // Skip signing when signing keys aren't configured (local publishToMavenLocal).
+    if (System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null) {
+        signAllPublications()
+    }
 
     pom {
         name.set("CodeView")
@@ -68,13 +70,4 @@ mavenPublishing {
 
 tasks.test {
     useJUnitPlatform()
-}
-
-// vanniktech maven-publish + Maven Central publish flow isn't config-cache compatible yet:
-// https://github.com/gradle/gradle/issues/22779. Mark publish tasks as opt-out so the rest of
-// the build still benefits from the config cache.
-tasks.withType(org.gradle.api.publish.maven.tasks.PublishToMavenRepository::class.java).configureEach {
-    notCompatibleWithConfigurationCache(
-        "Maven Central publishing isn't config-cache compatible yet — gradle/gradle#22779."
-    )
 }

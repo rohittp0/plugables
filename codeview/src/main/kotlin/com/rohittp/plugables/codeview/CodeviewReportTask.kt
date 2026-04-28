@@ -37,6 +37,9 @@ abstract class CodeviewReportTask : DefaultTask() {
     @get:Input
     abstract val ideScheme: Property<String>
 
+    @get:Input
+    abstract val openOnComplete: Property<Boolean>
+
     @TaskAction
     fun generate() {
         val out = outputDir.get().asFile.apply { deleteRecursively(); mkdirs() }
@@ -48,6 +51,7 @@ abstract class CodeviewReportTask : DefaultTask() {
 
         val rendered = mutableListOf<RenderedPreview>()
         val dimensions = mutableMapOf<String, Pair<Int, Int>>()
+        val sourceLineCache = mutableMapOf<String, List<String>>()
 
         for (spec in previews) {
             val sidecarFile = File(sidecarRoot, "${spec.id}.json")
@@ -62,12 +66,19 @@ abstract class CodeviewReportTask : DefaultTask() {
                 val resolvedFile = if (raw.sourceFileName != null)
                     sourceIndex.resolve(raw.sourceFileName, raw.packageHash)
                 else null
+                val snippet = resolvedFile?.let { path ->
+                    val lines = sourceLineCache.getOrPut(path) {
+                        runCatching { File(path).readLines() }.getOrDefault(emptyList())
+                    }
+                    if (raw.line in 1..lines.size) lines[raw.line - 1].trim().ifEmpty { null } else null
+                }
                 NodeInfo(
                     id = raw.id,
                     name = raw.name,
                     bounds = raw.bounds,
                     source = SourceLocation(file = resolvedFile, line = raw.line),
                     parentId = raw.parentId,
+                    codeSnippet = snippet,
                 )
             }
 
@@ -87,6 +98,22 @@ abstract class CodeviewReportTask : DefaultTask() {
         logger.lifecycle("[codeview] Wrote ${previews.size} preview(s).")
         logger.lifecycle("[codeview] Report:  ${indexFile.absolutePath}")
         logger.lifecycle("[codeview] Open it: file://${indexFile.absolutePath}")
+
+        if (openOnComplete.getOrElse(true)) {
+            runCatching { openInBrowser(indexFile) }.onFailure {
+                logger.info("[codeview] Could not auto-open report: ${it.message}")
+            }
+        }
+    }
+
+    private fun openInBrowser(file: File) {
+        val osName = System.getProperty("os.name", "").lowercase()
+        val cmd: List<String> = when {
+            osName.contains("mac") -> listOf("open", file.absolutePath)
+            osName.contains("win") -> listOf("cmd", "/c", "start", "", file.absolutePath)
+            else -> listOf("xdg-open", file.absolutePath)
+        }
+        ProcessBuilder(cmd).redirectErrorStream(true).start()
     }
 
     private fun parseIndex(json: String): List<PreviewSpec> {

@@ -1,5 +1,4 @@
 pluginManagement {
-    includeBuild("codeview")
     repositories {
         gradlePluginPortal()
         google()
@@ -22,4 +21,4 @@ plugins {
 rootProject.name = "plugables"
 include(":viewmodel-stub")
 include(":typed-events")
-include(":sample-app")
+include(":codeview")

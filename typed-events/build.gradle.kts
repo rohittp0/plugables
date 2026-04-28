@@ -38,7 +38,10 @@ gradlePlugin {
 
 mavenPublishing {
     publishToMavenCentral()
-    signAllPublications()
+    // Skip signing when signing keys aren't configured (local publishToMavenLocal).
+    if (System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null) {
+        signAllPublications()
+    }
 
     pom {
         name.set("TypedEvents")

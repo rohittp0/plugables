@@ -60,6 +60,7 @@ object HtmlReportRenderer {
         append("\"sourceFile\":").append(jsonString(n.source.file ?: "")).append(',')
         append("\"sourceLine\":").append(n.source.line).append(',')
         append("\"openUrl\":").append(jsonString(openUrl(scheme, n.source))).append(',')
+        append("\"codeSnippet\":").append(if (n.codeSnippet == null) "null" else jsonString(n.codeSnippet)).append(',')
         append("\"parentId\":").append(n.parentId?.toString() ?: "null")
         append('}')
     }

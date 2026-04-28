@@ -40,6 +40,7 @@ class CodeViewPlugin : Plugin<Project> {
             sourceDirs.from(ext.sourceDirs)
             outputDir.set(ext.outputDir)
             ideScheme.set(ext.ideScheme)
+            openOnComplete.set(ext.openOnComplete)
             dependsOn(generateTests)
         })
 
@@ -125,6 +126,7 @@ class CodeViewPlugin : Plugin<Project> {
                 sourceDirs.from(ext.sourceDirs)
                 outputDir.set(ext.outputDir.map { it.dir(variant.name) })
                 ideScheme.set(ext.ideScheme)
+                openOnComplete.set(ext.openOnComplete)
                 dependsOn(generateTests)
                 if (pullSidecars != null) {
                     dependsOn(pullSidecars)

@@ -1,0 +1,27 @@
+# Sample analytics schema for the typed-events plugin.
+# Each entry generates a typed top-level Kotlin function.
+
+- screen_viewed: User opened a screen
+
+- button_clicked:
+    info: User tapped a button
+    params:
+      button_id:
+        type: String
+        info: Stable identifier for the button
+      screen:
+        type: String
+        info: Screen the button was on
+
+- purchase_completed:
+    info: User completed an in-app purchase
+    params:
+      item_id:
+        type: String
+        info: The purchased item ID
+      price:
+        type: Double
+        info: Final price paid
+      currency:
+        type: String
+        info: ISO 4217 currency code

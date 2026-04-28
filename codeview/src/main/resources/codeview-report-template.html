@@ -3,85 +3,619 @@
 <head>
 <meta charset="utf-8" />
 <title>CodeView Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #1a1a1a; color: #eee; }
-  .layout { display: grid; grid-template-columns: 240px 1fr; height: 100vh; }
-  aside { background: #222; border-right: 1px solid #333; overflow-y: auto; padding: 12px; }
-  aside h1 { font-size: 14px; margin: 0 0 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
-  aside ul { list-style: none; padding: 0; margin: 0; }
-  aside li { padding: 8px; cursor: pointer; border-radius: 4px; font-size: 13px; }
-  aside li:hover { background: #333; }
-  aside li.active { background: #2d5fa0; }
-  main { padding: 24px; overflow: auto; }
-  main header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  main header h2 { margin: 0; font-size: 18px; }
-  main header a { color: #6ab0ff; text-decoration: none; font-size: 13px; }
-  main header a:hover { text-decoration: underline; }
-  .stage { position: relative; display: inline-block; border: 1px solid #333; border-radius: 4px; background: #fff; }
-  .stage img { display: block; max-width: 100%; }
-  .overlay { position: absolute; box-sizing: border-box; cursor: pointer; border: 1px solid transparent; }
-  .overlay:hover { border-color: #6ab0ff; background: rgba(106,176,255,0.15); }
-  .overlay-tooltip { display: none; position: fixed; background: #222; color: #eee; padding: 6px 10px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 9; white-space: nowrap; }
-  .empty { color: #888; font-style: italic; }
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --panel-2: #fafbfc;
+    --border: #e3e6eb;
+    --border-strong: #cbd0d6;
+    --text: #1a1d21;
+    --text-muted: #5b6470;
+    --text-dim: #8a929b;
+    --accent: #2563eb;
+    --accent-soft: rgba(37, 99, 235, 0.08);
+    --accent-strong: rgba(37, 99, 235, 0.18);
+    --code-bg: #0f172a;
+    --code-text: #e2e8f0;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1c222b;
+      --border: #2a313c;
+      --border-strong: #3a424f;
+      --text: #e6edf3;
+      --text-muted: #9ba5b1;
+      --text-dim: #6e7681;
+      --accent: #60a5fa;
+      --accent-soft: rgba(96, 165, 250, 0.1);
+      --accent-strong: rgba(96, 165, 250, 0.22);
+      --code-bg: #010409;
+      --code-text: #e6edf3;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre { font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+
+  /* ── App shell ─────────────────────────────────────────── */
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    backdrop-filter: saturate(180%) blur(8px);
+    box-shadow: var(--shadow-sm);
+  }
+  .topbar-inner {
+    display: flex; align-items: center; gap: 16px;
+    max-width: 1400px; margin: 0 auto; padding: 12px 24px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; letter-spacing: -0.01em;
+  }
+  .brand-logo {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 13px;
+    box-shadow: var(--shadow-sm);
+  }
+  .brand-name { font-size: 15px; }
+  .brand-count {
+    color: var(--text-dim); font-weight: 400; font-size: 13px;
+    padding-left: 12px; margin-left: 4px;
+    border-left: 1px solid var(--border);
+  }
+  .spacer { flex: 1; }
+
+  /* ── Search ────────────────────────────────────────────── */
+  .search-wrap {
+    position: relative; flex: 1; max-width: 480px;
+  }
+  .search-wrap.hidden { display: none; }
+  .search-input {
+    width: 100%; padding: 9px 14px 9px 38px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font: inherit; outline: none;
+    transition: border-color 120ms, box-shadow 120ms;
+  }
+  .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .search-icon {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text-dim); pointer-events: none;
+  }
+  .search-clear {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    padding: 4px 8px; border-radius: 4px; font-size: 16px;
+  }
+  .search-clear:hover { background: var(--accent-soft); color: var(--accent); }
+  .search-clear.hidden { display: none; }
+
+  .back-link { display: none; }
+  .back-link.visible {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent); text-decoration: none;
+    font-size: 13px; font-weight: 500;
+    padding: 7px 12px; border-radius: var(--radius-sm);
+    transition: background 120ms;
+  }
+  .back-link.visible:hover { background: var(--accent-soft); }
+
+  /* ── Pages ─────────────────────────────────────────────── */
+  .page { flex: 1; }
+  .page.hidden { display: none; }
+
+  /* Home: grid */
+  .home {
+    max-width: 1400px; margin: 0 auto;
+    padding: 28px 24px 48px;
+  }
+  .home-header {
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 20px;
+  }
+  .home-header h1 {
+    margin: 0; font-size: 22px; font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .home-header .home-meta { color: var(--text-dim); font-size: 13px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+    cursor: pointer; text-decoration: none; color: inherit;
+    transition: border-color 120ms, transform 120ms, box-shadow 120ms;
+    display: flex; flex-direction: column;
+  }
+  .card:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .card-thumb {
+    position: relative; background: #fff;
+    aspect-ratio: 16 / 10;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  @media (prefers-color-scheme: dark) {
+    .card-thumb { background: #0a0d12; }
+  }
+  .card-thumb img {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+  }
+  .card-thumb .empty-thumb {
+    color: var(--text-dim); font-size: 13px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .card-body { padding: 12px 14px; }
+  .card-title {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    margin: 0; letter-spacing: -0.01em;
+  }
+  .card-sub {
+    color: var(--text-dim); font-size: 12px; margin-top: 4px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .card-sub .dot { color: var(--border-strong); }
+  .card-sub mark {
+    background: var(--accent-strong); color: var(--text);
+    padding: 0 3px; border-radius: 2px;
+  }
+
+  .empty-state {
+    text-align: center; padding: 64px 24px; color: var(--text-dim);
+  }
+  .empty-state h2 { margin: 0 0 6px; font-size: 16px; color: var(--text); }
+
+  /* ── Detail page ───────────────────────────────────────── */
+  .detail { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 57px); }
+  .detail-side {
+    background: var(--panel); border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px 8px;
+    position: sticky; top: 57px; align-self: start;
+    max-height: calc(100vh - 57px);
+  }
+  .side-section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-dim);
+    padding: 4px 12px 8px;
+  }
+  .side-list { list-style: none; padding: 0; margin: 0; }
+  .side-list li {
+    padding: 8px 12px; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 13px;
+    color: var(--text-muted); margin-bottom: 1px;
+    transition: background 100ms, color 100ms;
+  }
+  .side-list li:hover { background: var(--accent-soft); color: var(--text); }
+  .side-list li.active {
+    background: var(--accent-soft);
+    color: var(--accent); font-weight: 600;
+  }
+
+  .detail-main {
+    padding: 28px 32px 48px;
+    overflow-x: auto;
+  }
+  .detail-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .detail-title { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  .detail-source {
+    color: var(--text-dim); font-size: 13px;
+  }
+  .ide-link {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent); text-decoration: none; font-size: 13px;
+    padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--panel); transition: background 120ms, border-color 120ms;
+  }
+  .ide-link:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+  /* Stage */
+  .stage-frame {
+    display: inline-block;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px;
+    box-shadow: var(--shadow-sm);
+  }
+  .stage {
+    position: relative; display: inline-block;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .stage img { display: block; max-width: 100%; user-select: none; -webkit-user-drag: none; }
+  .overlay {
+    position: absolute; box-sizing: border-box;
+    cursor: pointer; border: 1.5px solid transparent;
+    border-radius: 2px;
+    transition: background 80ms, border-color 80ms;
+  }
+  .overlay:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .empty-detail {
+    color: var(--text-dim); font-style: italic;
+    padding: 24px; background: var(--panel-2);
+    border: 1px dashed var(--border); border-radius: var(--radius);
+  }
+
+  /* Tooltip */
+  .tooltip {
+    display: none; position: fixed; z-index: 100;
+    max-width: 480px;
+    background: var(--code-bg); color: var(--code-text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+    font-size: 12px;
+  }
+  .tooltip-name {
+    color: #93c5fd; font-weight: 600;
+    margin-bottom: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  .tooltip-loc {
+    color: #94a3b8; font-size: 11px;
+    margin-bottom: 6px;
+  }
+  .tooltip-code {
+    margin: 0; padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    color: #e2e8f0;
+    font-size: 12px; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word;
+  }
 </style>
 </head>
 <body>
-<div class="layout">
-  <aside>
-    <h1>Previews</h1>
-    <ul id="preview-list"></ul>
-  </aside>
-  <main>
-    <header><h2 id="preview-title">No preview selected</h2><a id="open-source" href="#" target="_blank">Open in IDE &rarr;</a></header>
-    <div id="preview-body"><p class="empty">Select a preview from the list.</p></div>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#" class="brand" id="brand-link" style="text-decoration:none;color:inherit;">
+        <span class="brand-logo">C</span>
+        <span class="brand-name">CodeView</span>
+        <span class="brand-count" id="brand-count"></span>
+      </a>
+      <a href="#" class="back-link" id="back-link">
+        <span aria-hidden="true">←</span>
+        <span>All previews</span>
+      </a>
+      <div class="spacer"></div>
+      <div class="search-wrap" id="search-wrap">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <input id="search" class="search-input" type="search" placeholder="Search previews and elements…" autocomplete="off" />
+        <button id="search-clear" class="search-clear hidden" aria-label="Clear search">×</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Home: grid of previews -->
+  <main class="page" id="home">
+    <div class="home">
+      <div class="home-header">
+        <h1>Previews</h1>
+        <span class="home-meta" id="home-meta"></span>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="empty-state hidden" id="empty">
+        <h2>No matches</h2>
+        <p>No previews or elements match this search.</p>
+      </div>
+    </div>
   </main>
+
+  <!-- Detail: single preview -->
+  <main class="page hidden" id="detail">
+    <div class="detail">
+      <aside class="detail-side">
+        <p class="side-section-label">All previews</p>
+        <ul class="side-list" id="side-list"></ul>
+      </aside>
+      <section class="detail-main">
+        <header class="detail-header">
+          <h2 class="detail-title" id="detail-title"></h2>
+          <span class="detail-source" id="detail-source"></span>
+          <a id="ide-link" class="ide-link" href="#" target="_blank" rel="noreferrer">Open in IDE →</a>
+        </header>
+        <div id="detail-body"></div>
+      </section>
+    </div>
+  </main>
+
 </div>
-<div id="tooltip" class="overlay-tooltip"></div>
+
+<div id="tooltip" class="tooltip" role="tooltip">
+  <div class="tooltip-name" id="tt-name"></div>
+  <div class="tooltip-loc" id="tt-loc"></div>
+  <pre class="tooltip-code" id="tt-code"></pre>
+</div>
+
 <script id="codeview-data" type="application/json">__CODEVIEW_DATA__</script>
 <script>
 (function () {
+  // ─── Data ──────────────────────────────────────────────
   const data = JSON.parse(document.getElementById("codeview-data").textContent);
-  const list = document.getElementById("preview-list");
-  const title = document.getElementById("preview-title");
-  const body = document.getElementById("preview-body");
-  const openLink = document.getElementById("open-source");
+  const previews = data.previews || [];
+  const previewById = new Map(previews.map(function (p) { return [p.id, p]; }));
+
+  // Pre-compute searchable text for each preview: displayName + node names + code snippets.
+  previews.forEach(function (p) {
+    const parts = [p.displayName.toLowerCase()];
+    (p.nodes || []).forEach(function (n) {
+      if (n.name) parts.push(String(n.name).toLowerCase());
+      if (n.codeSnippet) parts.push(String(n.codeSnippet).toLowerCase());
+    });
+    p._search = parts.join("\n");
+  });
+
+  // ─── DOM refs ──────────────────────────────────────────
+  const home = document.getElementById("home");
+  const detail = document.getElementById("detail");
+  const grid = document.getElementById("grid");
+  const emptyState = document.getElementById("empty");
+  const homeMeta = document.getElementById("home-meta");
+  const sideList = document.getElementById("side-list");
+  const detailTitle = document.getElementById("detail-title");
+  const detailSource = document.getElementById("detail-source");
+  const detailBody = document.getElementById("detail-body");
+  const ideLink = document.getElementById("ide-link");
+  const searchInput = document.getElementById("search");
+  const searchClear = document.getElementById("search-clear");
+  const searchWrap = document.getElementById("search-wrap");
+  const backLink = document.getElementById("back-link");
+  const brandCount = document.getElementById("brand-count");
   const tooltip = document.getElementById("tooltip");
+  const ttName = document.getElementById("tt-name");
+  const ttLoc = document.getElementById("tt-loc");
+  const ttCode = document.getElementById("tt-code");
 
-  function showTooltip(e, text) {
-    tooltip.textContent = text;
-    tooltip.style.display = "block";
-    tooltip.style.left = (e.clientX + 12) + "px";
-    tooltip.style.top = (e.clientY + 12) + "px";
+  brandCount.textContent = previews.length + (previews.length === 1 ? " preview" : " previews");
+
+  // ─── Search state ──────────────────────────────────────
+  let query = "";
+  searchInput.addEventListener("input", function (e) {
+    query = e.target.value.trim().toLowerCase();
+    if (query) searchClear.classList.remove("hidden"); else searchClear.classList.add("hidden");
+    renderGrid();
+  });
+  searchClear.addEventListener("click", function () {
+    searchInput.value = "";
+    query = "";
+    searchClear.classList.add("hidden");
+    renderGrid();
+    searchInput.focus();
+  });
+
+  // ─── Routing ───────────────────────────────────────────
+  function shortFile(path) {
+    if (!path) return "";
+    return path.split("/").pop();
   }
-  function hideTooltip() { tooltip.style.display = "none"; }
 
-  function select(spec, li) {
-    document.querySelectorAll("aside li.active").forEach(el => el.classList.remove("active"));
-    li.classList.add("active");
-    title.textContent = spec.displayName;
-    openLink.href = spec.openUrl;
-    if (!spec.imagePath) {
-      body.innerHTML = '<p class="empty">No screenshot rendered yet. Run <code>./gradlew testDebugUnitTest</code>.</p>';
+  function showHome() {
+    detail.classList.add("hidden");
+    home.classList.remove("hidden");
+    backLink.classList.remove("visible");
+    searchWrap.classList.remove("hidden");
+    document.title = "CodeView Report";
+    hideTooltip();
+  }
+
+  function showDetail(spec) {
+    home.classList.add("hidden");
+    detail.classList.remove("hidden");
+    backLink.classList.add("visible");
+    searchWrap.classList.add("hidden");
+    document.title = spec.displayName + " — CodeView";
+
+    detailTitle.textContent = spec.displayName;
+    detailSource.textContent = shortFile(spec.sourceFile) + (spec.sourceLine ? ":" + spec.sourceLine : "");
+    if (spec.openUrl) {
+      ideLink.href = spec.openUrl;
+      ideLink.style.display = "inline-flex";
+    } else {
+      ideLink.style.display = "none";
+    }
+
+    renderSidebar(spec);
+    renderStage(spec);
+  }
+
+  function applyHash() {
+    const id = (location.hash || "").replace(/^#/, "");
+    if (id && previewById.has(id)) {
+      showDetail(previewById.get(id));
+    } else {
+      showHome();
+    }
+  }
+  window.addEventListener("hashchange", applyHash);
+
+  // ─── Home grid ─────────────────────────────────────────
+  function renderGrid() {
+    grid.innerHTML = "";
+    const filtered = query ? previews.filter(function (p) { return p._search.indexOf(query) !== -1; }) : previews;
+    homeMeta.textContent = query
+      ? "showing " + filtered.length + " of " + previews.length
+      : previews.length + (previews.length === 1 ? " preview" : " previews");
+
+    if (filtered.length === 0) {
+      emptyState.classList.remove("hidden");
       return;
     }
+    emptyState.classList.add("hidden");
+
+    filtered.forEach(function (p) {
+      const card = document.createElement("a");
+      card.className = "card";
+      card.href = "#" + p.id;
+
+      const thumb = document.createElement("div");
+      thumb.className = "card-thumb";
+      if (p.imagePath) {
+        const img = document.createElement("img");
+        img.src = p.imagePath;
+        img.alt = p.displayName;
+        img.loading = "lazy";
+        thumb.appendChild(img);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "empty-thumb";
+        empty.innerHTML = "<span style='font-size:22px;'>○</span><span>No screenshot</span>";
+        thumb.appendChild(empty);
+      }
+
+      const body = document.createElement("div");
+      body.className = "card-body";
+      const title = document.createElement("p");
+      title.className = "card-title";
+      title.textContent = p.displayName;
+      const sub = document.createElement("p");
+      sub.className = "card-sub";
+      const visibleNodes = (p.nodes || []).filter(function (n) { return n.openUrl; }).length;
+      sub.innerHTML =
+        "<span>" + (p.nodes ? p.nodes.length : 0) + " nodes</span>" +
+        "<span class='dot'>•</span>" +
+        "<span>" + visibleNodes + " linked</span>";
+
+      // If there's a query, surface the first matching code snippet.
+      if (query) {
+        const hit = (p.nodes || []).find(function (n) {
+          return (n.codeSnippet && n.codeSnippet.toLowerCase().indexOf(query) !== -1)
+              || (n.name && n.name.toLowerCase().indexOf(query) !== -1);
+        });
+        if (hit && hit.codeSnippet) {
+          const m = document.createElement("p");
+          m.className = "card-sub";
+          m.style.marginTop = "8px";
+          m.style.fontFamily = '"SF Mono", Menlo, Consolas, monospace';
+          m.style.color = "var(--text-muted)";
+          m.appendChild(highlightedFragment(hit.codeSnippet, query));
+          body.appendChild(title);
+          body.appendChild(sub);
+          body.appendChild(m);
+          card.appendChild(thumb);
+          card.appendChild(body);
+          grid.appendChild(card);
+          return;
+        }
+      }
+
+      body.appendChild(title);
+      body.appendChild(sub);
+      card.appendChild(thumb);
+      card.appendChild(body);
+      grid.appendChild(card);
+    });
+  }
+
+  function highlightedFragment(text, q) {
+    const frag = document.createDocumentFragment();
+    const lower = text.toLowerCase();
+    let i = 0;
+    while (i < text.length) {
+      const idx = lower.indexOf(q, i);
+      if (idx === -1) {
+        frag.appendChild(document.createTextNode(text.slice(i)));
+        break;
+      }
+      if (idx > i) frag.appendChild(document.createTextNode(text.slice(i, idx)));
+      const m = document.createElement("mark");
+      m.textContent = text.slice(idx, idx + q.length);
+      frag.appendChild(m);
+      i = idx + q.length;
+    }
+    return frag;
+  }
+
+  // ─── Detail ────────────────────────────────────────────
+  function renderSidebar(currentSpec) {
+    sideList.innerHTML = "";
+    previews.forEach(function (p) {
+      const li = document.createElement("li");
+      li.textContent = p.displayName;
+      if (p.id === currentSpec.id) li.classList.add("active");
+      li.addEventListener("click", function () { location.hash = "#" + p.id; });
+      sideList.appendChild(li);
+    });
+  }
+
+  function renderStage(spec) {
+    detailBody.innerHTML = "";
+
+    if (!spec.imagePath) {
+      const note = document.createElement("p");
+      note.className = "empty-detail";
+      note.innerHTML = "No screenshot rendered yet. Run <code>./gradlew :app:codeviewReportDebug</code>.";
+      detailBody.appendChild(note);
+      return;
+    }
+
+    const frame = document.createElement("div");
+    frame.className = "stage-frame";
     const stage = document.createElement("div");
     stage.className = "stage";
     const img = document.createElement("img");
     img.src = spec.imagePath;
     img.alt = spec.displayName;
     stage.appendChild(img);
+    frame.appendChild(stage);
+    detailBody.appendChild(frame);
+
     img.addEventListener("load", function () {
-      const sx = img.clientWidth / spec.imageWidth;
-      const sy = img.clientHeight / spec.imageHeight;
-      // Only render nodes that resolved to a file in the user's project (others are
-      // Compose-internal call sites whose openUrl is empty). Sort largest-first so
-      // smaller, more-specific nodes paint on top and win hover/click.
-      const visible = spec.nodes
+      // Filter out Compose-internal nodes (no resolved file -> empty openUrl) and sort
+      // largest-first so smaller, more-specific overlays paint on top.
+      const visible = (spec.nodes || [])
         .filter(function (n) { return n.openUrl && n.openUrl.length > 0; })
         .slice()
-        .sort(function (a, b) {
-          return (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height);
-        });
+        .sort(function (a, b) { return (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height); });
+
+      const sx = img.clientWidth / spec.imageWidth;
+      const sy = img.clientHeight / spec.imageHeight;
+
       visible.forEach(function (n) {
         const ov = document.createElement("a");
         ov.className = "overlay";
@@ -90,22 +624,39 @@
         ov.style.top = (n.bounds.y * sy) + "px";
         ov.style.width = (n.bounds.width * sx) + "px";
         ov.style.height = (n.bounds.height * sy) + "px";
-        ov.addEventListener("mousemove", function (e) { showTooltip(e, n.name + ' — line ' + n.sourceLine); });
+        ov.addEventListener("mousemove", function (e) { showTooltip(e, n); });
         ov.addEventListener("mouseleave", hideTooltip);
         stage.appendChild(ov);
       });
     });
-    body.innerHTML = "";
-    body.appendChild(stage);
   }
 
-  data.previews.forEach(function (spec, idx) {
-    const li = document.createElement("li");
-    li.textContent = spec.displayName;
-    li.addEventListener("click", function () { select(spec, li); });
-    list.appendChild(li);
-    if (idx === 0) select(spec, li);
-  });
+  // ─── Tooltip ───────────────────────────────────────────
+  function showTooltip(e, n) {
+    ttName.textContent = n.name || "Group";
+    ttLoc.textContent = shortFile(n.sourceFile) + (n.sourceLine && n.sourceLine > 0 ? ":" + n.sourceLine : "");
+    if (n.codeSnippet) {
+      ttCode.textContent = n.codeSnippet;
+      ttCode.style.display = "block";
+    } else {
+      ttCode.textContent = "";
+      ttCode.style.display = "none";
+    }
+    tooltip.style.display = "block";
+    // Position near cursor; flip to left/above if it would overflow.
+    const pad = 14;
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth - 8) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 8) y = e.clientY - th - pad;
+    tooltip.style.left = Math.max(8, x) + "px";
+    tooltip.style.top = Math.max(8, y) + "px";
+  }
+  function hideTooltip() { tooltip.style.display = "none"; }
+
+  // ─── Init ──────────────────────────────────────────────
+  renderGrid();
+  applyHash();
 })();
 </script>
 </body>

@@ -1,9 +1,11 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview")
+    id("com.android.application") version "9.2.0"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
+    id("com.rohittp.plugables.codeview") version "0.1.0"
+    id("com.rohittp.plugables.typed-events") version "1.0.0"
+    id("com.rohittp.plugables.viewmodel-stub") version "1.0.0"
 }
 
 android {
@@ -68,4 +70,12 @@ codeview {
     ideScheme.set("idea")
     testActivityClass.set("androidx.activity.ComponentActivity")
     testMode.set("instrumented")
+}
+
+typedEvents {
+    specFile.set(file("src/main/events.yaml"))
+}
+
+viewModelStub {
+    sourceDir.set(file("src/main/kotlin"))
 }

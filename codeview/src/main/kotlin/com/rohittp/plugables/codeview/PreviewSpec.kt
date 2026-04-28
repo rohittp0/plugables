@@ -25,6 +25,8 @@ data class NodeInfo(
     val bounds: Bounds,
     val source: SourceLocation,
     val parentId: Int?,
+    /** Single line of source at [source.line], trimmed. Null if the file isn't in sourceDirs. */
+    val codeSnippet: String?,
 )
 
 data class RenderedPreview(
