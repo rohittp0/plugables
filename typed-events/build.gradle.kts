@@ -19,7 +19,7 @@ java {
 }
 
 dependencies {
-    compileOnly("com.android.tools.build:gradle:9.1.0")
+    compileOnly("com.android.tools.build:gradle:9.2.0")
     implementation("org.yaml:snakeyaml:2.6")
     testImplementation(kotlin("test"))
 }
