@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     `kotlin-dsl`
-    id("com.vanniktech.maven.publish") version "0.33.0"
+    id("com.vanniktech.maven.publish") version "0.36.0"
 }
 
 version = "0.1.0"
@@ -19,7 +19,7 @@ java {
 }
 
 dependencies {
-    compileOnly("com.android.tools.build:gradle:9.1.0")
+    compileOnly("com.android.tools.build:gradle:9.2.0")
     testImplementation(kotlin("test"))
     testImplementation(gradleTestKit())
 }
