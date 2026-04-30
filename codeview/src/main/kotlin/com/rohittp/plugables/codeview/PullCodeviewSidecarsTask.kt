@@ -40,7 +40,10 @@ abstract class PullCodeviewSidecarsTask @Inject constructor(
 
     @TaskAction
     fun pull() {
-        val out = outputDir.get().asFile.apply { deleteRecursively(); mkdirs() }
+        // Don't wipe the local output dir — sidecars from previous runs of `@Ignore`d previews
+        // must survive so the report still has data for them. `adb pull` overwrites files that
+        // are republished this run; everything else stays.
+        val out = outputDir.get().asFile.apply { mkdirs() }
         val devicePath = "/sdcard/codeview-sidecars"
         val adb = resolveAdb()
         val deviceArgs = pickDevice(adb)

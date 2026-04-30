@@ -118,7 +118,7 @@ abstract class CodeviewReportTask : DefaultTask() {
 
     private fun parseIndex(json: String): List<PreviewSpec> {
         val pattern = Regex(
-            """\{"id":"([^"]+)","previewFqn":"([^"]+)","displayName":"([^"]+)","sourceFile":"((?:[^"\\]|\\.)*)","sourceLine":(\d+)\}"""
+            """\{"id":"([^"]+)","previewFqn":"([^"]+)","displayName":"([^"]+)","sourceFile":"((?:[^"\\]|\\.)*)","sourceLine":(\d+)(?:,"sourceHash":"([0-9a-f]*)")?\}"""
         )
         return pattern.findAll(json).map { m ->
             PreviewSpec(
@@ -129,6 +129,7 @@ abstract class CodeviewReportTask : DefaultTask() {
                     file = m.groupValues[4].replace("\\\\", "\\").ifEmpty { null },
                     line = m.groupValues[5].toInt(),
                 ),
+                sourceHash = m.groupValues[6],
             )
         }.toList()
     }

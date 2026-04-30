@@ -10,6 +10,12 @@ data class PreviewSpec(
     val previewFqn: String,
     val displayName: String,
     val source: SourceLocation,
+    /**
+     * SHA-256 (hex) of the entire source file the preview is declared in. Used to short-circuit
+     * re-rendering when the source hasn't changed since the previous run — see
+     * [GeneratePreviewTestsTask] and the `sourceHash` field in sidecar JSON v2+.
+     */
+    val sourceHash: String,
 )
 
 data class Bounds(

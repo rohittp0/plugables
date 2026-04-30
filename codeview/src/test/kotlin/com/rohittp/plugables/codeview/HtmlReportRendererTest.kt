@@ -10,6 +10,7 @@ class HtmlReportRendererTest {
         previewFqn = "com.example.HomePreview",
         displayName = "HomePreview",
         source = SourceLocation("/abs/Home.kt", 12),
+        sourceHash = "0".repeat(64),
     )
 
     private val nodes = listOf(

@@ -102,7 +102,7 @@
     <header class="page-header">
       <h1>codeview</h1>
       <div class="page-badges">
-        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-version">v1.2.0</span>
         <span class="badge badge-platform">Android</span>
         <span class="badge badge-kotlin">Kotlin</span>
       </div>
@@ -181,7 +181,7 @@
         <pre><code><span class="fn">plugins</span> <span class="op">{</span>
     <span class="k">id</span><span class="op">(</span><span class="st">"com.android.application"</span><span class="op">)</span>
     <span class="k">id</span><span class="op">(</span><span class="st">"org.jetbrains.kotlin.plugin.compose"</span><span class="op">)</span>
-    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.codeview"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.codeview"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.2.0"</span>
 <span class="op">}</span></code></pre>
       </div>
 
@@ -451,8 +451,8 @@
             <tr>
               <td><code>sourceDirs</code></td>
               <td><code>ConfigurableFileCollection</code></td>
-              <td><code>src/main/kotlin</code></td>
-              <td>Directories scanned for <code>*.kt</code> files containing <code>@Preview</code> functions.</td>
+              <td><code>src/main/kotlin</code>, <code>src/main/java</code></td>
+              <td>Directories scanned for <code>*.kt</code> files containing <code>@Preview</code> functions. Defaults cover the standard Android Studio layout (Kotlin under <code>src/main/java</code>); override if your previews live elsewhere.</td>
             </tr>
             <tr>
               <td><code>outputDir</code></td>
@@ -665,6 +665,22 @@
           (<code>_0</code>, <code>_1</code>, …).
         </li>
         <li>
+          <strong>Top-level <code>private @Preview</code> functions are skipped.</strong>
+          Kotlin <code>private</code> at file scope is unreachable from generated test files,
+          and <code>@Composable</code> functions can't be invoked via reflection. Codeview emits
+          a Gradle warning listing every skipped FQN — change them to <code>internal</code> (or
+          drop the modifier) to include them in the report.
+        </li>
+        <li>
+          <strong>Incremental rendering is per-file (v1.2+).</strong> Each sidecar JSON stores
+          a SHA-256 of its <code>.kt</code> source. Subsequent runs mark unchanged previews
+          <code>@Ignore</code>, so JUnit skips them in milliseconds and the device avoids the
+          <code>captureToImage</code> roundtrip. Editing any preview in a file re-renders all
+          previews in that file; cross-file dependencies (themes, shared composables) aren't
+          tracked — run <code>./gradlew :app:codeviewReportDebug --rerun-tasks</code> to force
+          a full re-render.
+        </li>
+        <li>
           Instrumented mode requires a device or emulator at run time; CI must provision one
           (managed devices, GMD, or a separate emulator step). When multiple devices are
           attached, codeview targets the first emulator it finds.
@@ -689,7 +705,7 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <a href="index" class="footer-brand">Plugables</a>
-    <span class="footer-meta">com.rohittp.plugables.codeview · v1.0.0</span>
+    <span class="footer-meta">com.rohittp.plugables.codeview · v1.2.0</span>
     <div class="footer-links">
       <a href="https://github.com/rohittp0/plugables/tree/main/codeview" target="_blank" rel="noopener noreferrer">Source</a>
       <a href="typed-events">← typed-events</a>

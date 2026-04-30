@@ -33,6 +33,7 @@ object CodeviewRuntime {
         previewDisplayName: String,
         previewSourceFile: String,
         previewSourceLine: Int,
+        previewSourceHash: String,
         content: @Composable () -> Unit,
     ) {
         val record = androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
@@ -106,6 +107,7 @@ object CodeviewRuntime {
             previewDisplayName = previewDisplayName,
             previewSourceFile = previewSourceFile,
             previewSourceLine = previewSourceLine,
+            previewSourceHash = previewSourceHash,
             imageWidth = bitmapWidth,
             imageHeight = bitmapHeight,
             nodes = nodes,
@@ -173,18 +175,20 @@ object CodeviewRuntime {
         previewDisplayName: String,
         previewSourceFile: String,
         previewSourceLine: Int,
+        previewSourceHash: String,
         imageWidth: Int,
         imageHeight: Int,
         nodes: List<NodeJson>,
         renderedTexts: List<String>,
     ): String = buildString {
         append("{")
-        append("\"schemaVersion\":1,")
+        append("\"schemaVersion\":2,")
         append("\"id\":").append(j(previewId)).append(',')
         append("\"previewFqn\":").append(j(previewFqn)).append(',')
         append("\"displayName\":").append(j(previewDisplayName)).append(',')
         append("\"sourceFile\":").append(j(previewSourceFile)).append(',')
         append("\"sourceLine\":").append(previewSourceLine).append(',')
+        append("\"sourceHash\":").append(j(previewSourceHash)).append(',')
         append("\"imageWidth\":").append(imageWidth).append(',')
         append("\"imageHeight\":").append(imageHeight).append(',')
         append("\"renderedTexts\":[")

@@ -53,7 +53,7 @@ You need an `Activity` registered in your **main** `AndroidManifest.xml` with a 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "1.0.0"
+    id("com.rohittp.plugables.codeview") version "1.2.0"
 }
 
 android {
@@ -92,7 +92,7 @@ Run: `./gradlew :app:codeviewReportDebug`. The report will list every preview wi
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "1.0.0"
+    id("com.rohittp.plugables.codeview") version "1.2.0"
 }
 
 android {
@@ -153,6 +153,18 @@ Five non-obvious things forced the current shape of the plugin; document them so
 3. **`LocalInspectionTables` alone doesn't populate.** You also have to add `currentComposer.compositionData` to the set inside the composition itself — that's the same pattern Layout Inspector uses internally.
 4. **AGP uninstalls the app after `connected*AndroidTest`.** Anything written to the app's `externalCacheDir` is gone before the host can `adb pull` it. The instrumented helper republishes sidecars to `/sdcard/codeview-sidecars/` from inside the test process, using `UiAutomation.executeShellCommand` (uid 2000, has write access to `/sdcard`).
 5. **`adb` is rarely on Gradle's `PATH`.** The pull task resolves it from `local.properties#sdk.dir`, then `ANDROID_HOME`, then `ANDROID_SDK_ROOT`, falling back to `adb` on the path as a last resort.
+
+## Configuration notes
+
+- **Source directories.** `sourceDirs` defaults to both `src/main/kotlin` and `src/main/java` so the standard Android Studio layout (Kotlin under `src/main/java`) works out of the box. Override it explicitly if your previews live elsewhere:
+  ```kotlin
+  codeview {
+      sourceDirs.from(layout.projectDirectory.dir("src/main/java"))
+  }
+  ```
+- **Private `@Preview` functions are skipped.** Top-level `private fun` in Kotlin is file-scoped, so generated test files in another file can't invoke them. Codeview logs a warning listing every skipped FQN — change them to `internal fun` (or drop the modifier) to include them in the report.
+- **Preview ids are stable across runs and unique across files.** The id format is `Codeview_<funName>_<8-hex>` where the hex disambiguator is derived from the source file path and the preview FQN. Two `@Preview fun MyPreview()` declared in different files no longer collide on the test class name or sidecar file.
+- **Incremental rendering (v1.2+).** Each sidecar JSON now stores a SHA-256 of its source file. On subsequent runs, codeview marks unchanged previews `@Ignore("codeview: source unchanged since last render")` so JUnit dispatches them in milliseconds and the device skips the expensive `captureToImage` step. A typical no-op rerun drops `connectedAndroidTest` time from "every preview re-rendered" to "instrumentation overhead only". Granularity is per `.kt` file: editing any preview in a file re-renders all previews in that file. Cross-file dependencies (themes, shared composables, resources) aren't tracked — use `./gradlew :app:codeviewReportDebug --rerun-tasks` to force a full re-render when they change.
 
 ## v1 limitations
 
