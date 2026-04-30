@@ -39,6 +39,7 @@ object HtmlReportRenderer {
                 append("\"imageWidth\":").append(w).append(',')
                 append("\"imageHeight\":").append(h).append(',')
                 append("\"openUrl\":").append(jsonString(openUrl)).append(',')
+                append("\"renderError\":").append(if (rp.renderError == null) "null" else jsonString(rp.renderError)).append(',')
                 append("\"renderedTexts\":[")
                 append(rp.renderedTexts.joinToString(",") { jsonString(it) })
                 append("],")

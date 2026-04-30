@@ -25,17 +25,52 @@ import java.io.File
 
 object CodeviewRuntime {
 
-    fun renderAndCapture(
+    data class PreviewMeta(
+        val id: String,
+        val fqn: String,
+        val displayName: String,
+        val sourceFile: String,
+        val sourceLine: Int,
+        val sourceHash: String,
+    )
+
+    /**
+     * Single-test entry point. Iterates the registry, skipping any preview whose id is in
+     * [skippedIds] (computed host-side from the previous run's sidecars). One Activity launch,
+     * one Compose runtime, N renders. A render exception in any preview is caught and recorded
+     * as `renderError` in that preview's sidecar; the loop continues.
+     */
+    fun runBatch(
         uiTest: ComposeUiTest,
         outputDir: File,
-        previewId: String,
-        previewFqn: String,
-        previewDisplayName: String,
-        previewSourceFile: String,
-        previewSourceLine: Int,
-        previewSourceHash: String,
-        content: @Composable () -> Unit,
+        registry: List<Pair<PreviewMeta, @Composable () -> Unit>>,
+        skippedIds: Set<String>,
     ) {
+        outputDir.mkdirs()
+        val publishToSdcard = File(outputDir, "__codeview_published__").exists()
+        if (publishToSdcard) preparePublishDir()
+
+        for ((meta, content) in registry) {
+            if (meta.id in skippedIds) continue
+            try {
+                renderOne(uiTest, outputDir, meta, content, publishToSdcard)
+            } catch (t: Throwable) {
+                System.err.println("[codeview] Render failed for ${meta.id}: ${t.message}")
+                t.printStackTrace()
+                writeErrorSidecar(outputDir, meta, t, publishToSdcard)
+            }
+        }
+    }
+
+    private fun renderOne(
+        uiTest: ComposeUiTest,
+        outputDir: File,
+        meta: PreviewMeta,
+        content: @Composable () -> Unit,
+        publishToSdcard: Boolean,
+    ) {
+        // Fresh CompositionDataRecord per preview so slot-tree state doesn't leak between
+        // iterations. setContent replaces the previous composition.
         val record = androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
         uiTest.setContent {
             androidx.compose.ui.tooling.Inspectable(record) {
@@ -45,10 +80,6 @@ object CodeviewRuntime {
         uiTest.waitForIdle()
         val tables: Set<CompositionData> = record.store
 
-        // Walk the slot tree via mapTree (Compose 1.11+ API). Each callback receives a
-        // SourceContext with the call's name, bounds, and source position. Returning null
-        // skips a group; otherwise we emit a NodeJson and the runtime threads it through
-        // to its parent so we can wire parentId in one pass.
         val nodes = mutableListOf<NodeJson>()
         val cache = ContextCache()
         val nextIdHolder = intArrayOf(1)
@@ -75,66 +106,74 @@ object CodeviewRuntime {
             }, cache)
         }
 
-        // Walk the semantics tree to collect the rendered text strings — these are the
-        // strings actually displayed on screen, after R.string lookups, lambdas, and any
-        // other runtime substitution. Used by the report's search box.
         val renderedTexts = mutableListOf<String>()
         try {
             val rootSem = uiTest.onRoot().fetchSemanticsNode()
             collectRenderedText(rootSem, renderedTexts)
         } catch (t: Throwable) {
-            System.err.println("[codeview] Could not collect semantics text for $previewId: ${t.message}")
+            System.err.println("[codeview] Could not collect semantics text for ${meta.id}: ${t.message}")
         }
-
-        outputDir.mkdirs()
 
         var bitmapWidth = 0
         var bitmapHeight = 0
-        val pngFile = File(outputDir, "$previewId.png")
+        val pngFile = File(outputDir, "${meta.id}.png")
         try {
             val bitmap: Bitmap = uiTest.onRoot().captureToImage().asAndroidBitmap()
             bitmapWidth = bitmap.width
             bitmapHeight = bitmap.height
             pngFile.outputStream().use { os -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, os) }
         } catch (t: Throwable) {
-            System.err.println("[codeview] Skipping PNG capture for $previewId: ${t.message}")
+            System.err.println("[codeview] Skipping PNG capture for ${meta.id}: ${t.message}")
         }
 
-        val sidecar = File(outputDir, "$previewId.json")
-        sidecar.writeText(buildJson(
-            previewId = previewId,
-            previewFqn = previewFqn,
-            previewDisplayName = previewDisplayName,
-            previewSourceFile = previewSourceFile,
-            previewSourceLine = previewSourceLine,
-            previewSourceHash = previewSourceHash,
-            imageWidth = bitmapWidth,
-            imageHeight = bitmapHeight,
-            nodes = nodes,
-            renderedTexts = renderedTexts,
-        ))
+        val sidecar = File(outputDir, "${meta.id}.json")
+        sidecar.writeText(buildJson(meta, bitmapWidth, bitmapHeight, nodes, renderedTexts, renderError = null))
 
-        // For instrumented runs the app is uninstalled by AGP after the test, so files in
-        // externalCacheDir disappear before the host can pull them. Use UiAutomation to shell-out
-        // (uid 2000, has write access to /sdcard) and copy sidecars to a shared location that
-        // survives uninstall. The sentinel file `__codeview_published__` flags this mode.
-        if (File(outputDir, "__codeview_published__").exists()) {
-            try {
-                val ui = androidx.test.platform.app.InstrumentationRegistry
-                    .getInstrumentation().uiAutomation
-                val publishDir = "/sdcard/codeview-sidecars"
-                ui.executeShellCommand("mkdir -p $publishDir").close()
-                ui.executeShellCommand("chmod 777 $publishDir").close()
-                sidecar.setReadable(true, false)
-                if (pngFile.exists()) pngFile.setReadable(true, false)
-                ui.executeShellCommand("cp ${sidecar.absolutePath} $publishDir/${sidecar.name}").close()
-                if (pngFile.exists()) {
-                    ui.executeShellCommand("cp ${pngFile.absolutePath} $publishDir/${pngFile.name}").close()
-                }
-            } catch (t: Throwable) {
-                System.err.println("[codeview] Failed to publish sidecars: ${t.message}")
-                t.printStackTrace()
+        if (publishToSdcard) publish(sidecar, pngFile)
+    }
+
+    private fun writeErrorSidecar(
+        outputDir: File,
+        meta: PreviewMeta,
+        t: Throwable,
+        publishToSdcard: Boolean,
+    ) {
+        val sidecar = File(outputDir, "${meta.id}.json")
+        sidecar.writeText(buildJson(meta, 0, 0, emptyList(), emptyList(), renderError = t.stackTraceToString()))
+        if (publishToSdcard) publish(sidecar, pngFile = null)
+    }
+
+    /**
+     * For instrumented runs the app is uninstalled by AGP after the test, so files in
+     * externalCacheDir disappear before the host can pull them. Use UiAutomation to shell-out
+     * (uid 2000, has write access to /sdcard) and copy sidecars to a shared location that
+     * survives uninstall. The sentinel file `__codeview_published__` flags this mode.
+     */
+    private fun preparePublishDir() {
+        try {
+            val ui = androidx.test.platform.app.InstrumentationRegistry
+                .getInstrumentation().uiAutomation
+            val publishDir = "/sdcard/codeview-sidecars"
+            ui.executeShellCommand("mkdir -p $publishDir").close()
+            ui.executeShellCommand("chmod 777 $publishDir").close()
+        } catch (t: Throwable) {
+            System.err.println("[codeview] Failed to prepare publish dir: ${t.message}")
+        }
+    }
+
+    private fun publish(sidecar: File, pngFile: File?) {
+        try {
+            val ui = androidx.test.platform.app.InstrumentationRegistry
+                .getInstrumentation().uiAutomation
+            val publishDir = "/sdcard/codeview-sidecars"
+            sidecar.setReadable(true, false)
+            if (pngFile != null && pngFile.exists()) pngFile.setReadable(true, false)
+            ui.executeShellCommand("cp ${sidecar.absolutePath} $publishDir/${sidecar.name}").close()
+            if (pngFile != null && pngFile.exists()) {
+                ui.executeShellCommand("cp ${pngFile.absolutePath} $publishDir/${pngFile.name}").close()
             }
+        } catch (t: Throwable) {
+            System.err.println("[codeview] Failed to publish sidecars for ${sidecar.name}: ${t.message}")
         }
     }
 
@@ -170,27 +209,26 @@ object CodeviewRuntime {
     }
 
     private fun buildJson(
-        previewId: String,
-        previewFqn: String,
-        previewDisplayName: String,
-        previewSourceFile: String,
-        previewSourceLine: Int,
-        previewSourceHash: String,
+        meta: PreviewMeta,
         imageWidth: Int,
         imageHeight: Int,
         nodes: List<NodeJson>,
         renderedTexts: List<String>,
+        renderError: String?,
     ): String = buildString {
         append("{")
-        append("\"schemaVersion\":2,")
-        append("\"id\":").append(j(previewId)).append(',')
-        append("\"previewFqn\":").append(j(previewFqn)).append(',')
-        append("\"displayName\":").append(j(previewDisplayName)).append(',')
-        append("\"sourceFile\":").append(j(previewSourceFile)).append(',')
-        append("\"sourceLine\":").append(previewSourceLine).append(',')
-        append("\"sourceHash\":").append(j(previewSourceHash)).append(',')
+        append("\"schemaVersion\":3,")
+        append("\"id\":").append(j(meta.id)).append(',')
+        append("\"previewFqn\":").append(j(meta.fqn)).append(',')
+        append("\"displayName\":").append(j(meta.displayName)).append(',')
+        append("\"sourceFile\":").append(j(meta.sourceFile)).append(',')
+        append("\"sourceLine\":").append(meta.sourceLine).append(',')
+        append("\"sourceHash\":").append(j(meta.sourceHash)).append(',')
         append("\"imageWidth\":").append(imageWidth).append(',')
         append("\"imageHeight\":").append(imageHeight).append(',')
+        if (renderError != null) {
+            append("\"renderError\":").append(j(renderError)).append(',')
+        }
         append("\"renderedTexts\":[")
         append(renderedTexts.joinToString(",") { j(it) })
         append("],")

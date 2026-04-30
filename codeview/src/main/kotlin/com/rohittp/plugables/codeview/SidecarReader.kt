@@ -19,11 +19,14 @@ object SidecarReader {
         val renderedTexts: List<String>,
         val schemaVersion: Int,
         val sourceHash: String?,
+        /** Set when the per-preview render threw inside the batched test. */
+        val renderError: String? = null,
     )
 
     fun read(json: String): Parsed {
         val schema = Regex("\"schemaVersion\":(\\d+)").find(json)?.groupValues?.get(1)?.toInt() ?: 1
         val sourceHash = Regex("\"sourceHash\":\"((?:[^\"\\\\]|\\\\.)*)\"").find(json)?.groupValues?.get(1)
+        val renderError = Regex("\"renderError\":\"((?:[^\"\\\\]|\\\\.)*)\"").find(json)?.groupValues?.get(1)?.unescape()
         val w = Regex("\"imageWidth\":(\\d+)").find(json)?.groupValues?.get(1)?.toInt() ?: 0
         val h = Regex("\"imageHeight\":(\\d+)").find(json)?.groupValues?.get(1)?.toInt() ?: 0
         val nodes = mutableListOf<RawNode>()
@@ -46,7 +49,7 @@ object SidecarReader {
                 parentId = if (m.groupValues[11] == "null") null else m.groupValues[11].toInt(),
             ))
         }
-        return Parsed(w, h, nodes, parseRenderedTexts(json), schema, sourceHash)
+        return Parsed(w, h, nodes, parseRenderedTexts(json), schema, sourceHash, renderError)
     }
 
     private fun parseRenderedTexts(json: String): List<String> {

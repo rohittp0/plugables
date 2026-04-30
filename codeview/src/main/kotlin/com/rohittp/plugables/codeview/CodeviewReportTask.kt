@@ -61,6 +61,7 @@ abstract class CodeviewReportTask : DefaultTask() {
             }
             val parsed = SidecarReader.read(sidecarFile.readText())
             dimensions[spec.id] = parsed.imageWidth to parsed.imageHeight
+            val sidecarRenderError = parsed.renderError
 
             val nodes = parsed.nodes.map { raw ->
                 val resolvedFile = if (raw.sourceFileName != null)
@@ -88,7 +89,7 @@ abstract class CodeviewReportTask : DefaultTask() {
                 "previews/${spec.id}.png"
             } else null
 
-            rendered.add(RenderedPreview(spec, imagePath, nodes, parsed.renderedTexts))
+            rendered.add(RenderedPreview(spec, imagePath, nodes, parsed.renderedTexts, sidecarRenderError))
         }
 
         val html = HtmlReportRenderer.render(rendered, dimensions, ideScheme.get())

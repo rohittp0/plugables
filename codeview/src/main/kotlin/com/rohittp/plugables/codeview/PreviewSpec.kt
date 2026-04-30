@@ -41,4 +41,6 @@ data class RenderedPreview(
     val nodes: List<NodeInfo>,
     /** Plain text strings actually shown on screen, sourced from the Compose semantics tree. */
     val renderedTexts: List<String>,
+    /** Non-null when `renderOne` threw at render time inside the batch. The card renders broken. */
+    val renderError: String? = null,
 )
