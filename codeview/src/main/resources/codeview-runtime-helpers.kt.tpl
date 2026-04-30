@@ -10,6 +10,10 @@ package com.rohittp.plugables.codeview.generated
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.tooling.CompositionData
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsNode
@@ -35,10 +39,12 @@ object CodeviewRuntime {
     )
 
     /**
-     * Single-test entry point. Iterates the registry, skipping any preview whose id is in
-     * [skippedIds] (computed host-side from the previous run's sidecars). One Activity launch,
-     * one Compose runtime, N renders. A render exception in any preview is caught and recorded
-     * as `renderError` in that preview's sidecar; the loop continues.
+     * Single-test entry point. Compose UI test allows exactly one [ComposeUiTest.setContent] call
+     * per test, so we set it once with a [androidx.compose.runtime.mutableStateOf] holding the
+     * current preview's content. Each iteration swaps the state value and a `key(...)` block
+     * forces a fresh composition subtree so previous slot-tree state doesn't leak between
+     * previews. A render exception in any preview is caught, recorded in that preview's
+     * `renderError` sidecar field, and the loop continues.
      */
     fun runBatch(
         uiTest: ComposeUiTest,
@@ -50,13 +56,32 @@ object CodeviewRuntime {
         val publishToSdcard = File(outputDir, "__codeview_published__").exists()
         if (publishToSdcard) preparePublishDir()
 
+        val record = androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
+        var currentKey by mutableStateOf("")
+        var currentContent by mutableStateOf<@Composable () -> Unit>({})
+
+        uiTest.setContent {
+            // `key(currentKey)` forces a brand-new subtree per preview so each render starts
+            // from a clean slot table — no `remember` leak from the previous preview.
+            key(currentKey) {
+                androidx.compose.ui.tooling.Inspectable(record) {
+                    currentContent()
+                }
+            }
+        }
+        // Establish the empty initial composition.
+        uiTest.waitForIdle()
+
         for ((meta, content) in registry) {
             if (meta.id in skippedIds) continue
             try {
-                renderOne(uiTest, outputDir, meta, content, publishToSdcard)
+                // Swap content and re-key so Inspectable adds a fresh CompositionData.
+                currentKey = meta.id
+                currentContent = content
+                uiTest.waitForIdle()
+                renderOne(uiTest, outputDir, meta, record, publishToSdcard)
             } catch (t: Throwable) {
                 System.err.println("[codeview] Render failed for ${meta.id}: ${t.message}")
-                t.printStackTrace()
                 writeErrorSidecar(outputDir, meta, t, publishToSdcard)
             }
         }
@@ -66,45 +91,40 @@ object CodeviewRuntime {
         uiTest: ComposeUiTest,
         outputDir: File,
         meta: PreviewMeta,
-        content: @Composable () -> Unit,
+        record: androidx.compose.ui.tooling.CompositionDataRecord,
         publishToSdcard: Boolean,
     ) {
-        // Fresh CompositionDataRecord per preview so slot-tree state doesn't leak between
-        // iterations. setContent replaces the previous composition.
-        val record = androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
-        uiTest.setContent {
-            androidx.compose.ui.tooling.Inspectable(record) {
-                content()
-            }
-        }
-        uiTest.waitForIdle()
-        val tables: Set<CompositionData> = record.store
+        // `record.store` accumulates a CompositionData per Inspectable composition. With the
+        // `key(currentKey)` swap, the most recent CompositionData reflects the current preview;
+        // older entries reference subtrees that have been disposed. mapTree on a disposed table
+        // yields no live nodes, so iterating all entries is safe — only the current one
+        // produces nodes — but for clarity we walk only the most recently added entry.
+        val tables: List<CompositionData> = record.store.toList()
+        val currentTable = tables.lastOrNull()
 
         val nodes = mutableListOf<NodeJson>()
         val cache = ContextCache()
         val nextIdHolder = intArrayOf(1)
-        tables.forEach { data ->
-            data.mapTree<NodeJson>({ _, ctx, childNodes ->
-                val box = ctx.bounds
-                if (box.right <= box.left || box.bottom <= box.top) return@mapTree null
-                val myId = nextIdHolder[0]
-                nextIdHolder[0] = myId + 1
-                val loc = ctx.location
-                val node = NodeJson(
-                    id = myId,
-                    name = ctx.name ?: "Group",
-                    x = box.left, y = box.top,
-                    w = box.right - box.left, h = box.bottom - box.top,
-                    sourceFileName = loc?.sourceFile,
-                    packageHash = loc?.packageHash ?: 0,
-                    line = loc?.lineNumber ?: -1,
-                    parentId = null,
-                )
-                nodes.add(node)
-                childNodes.forEach { it.parentId = myId }
-                node
-            }, cache)
-        }
+        currentTable?.mapTree<NodeJson>({ _, ctx, childNodes ->
+            val box = ctx.bounds
+            if (box.right <= box.left || box.bottom <= box.top) return@mapTree null
+            val myId = nextIdHolder[0]
+            nextIdHolder[0] = myId + 1
+            val loc = ctx.location
+            val node = NodeJson(
+                id = myId,
+                name = ctx.name ?: "Group",
+                x = box.left, y = box.top,
+                w = box.right - box.left, h = box.bottom - box.top,
+                sourceFileName = loc?.sourceFile,
+                packageHash = loc?.packageHash ?: 0,
+                line = loc?.lineNumber ?: -1,
+                parentId = null,
+            )
+            nodes.add(node)
+            childNodes.forEach { it.parentId = myId }
+            node
+        }, cache)
 
         val renderedTexts = mutableListOf<String>()
         try {
@@ -138,8 +158,11 @@ object CodeviewRuntime {
         t: Throwable,
         publishToSdcard: Boolean,
     ) {
+        // Keep the error message short — long stack traces inflate sidecar JSON for no real
+        // user value (the relevant info is the exception class + message).
+        val msg = "${t.javaClass.simpleName}: ${t.message ?: "(no message)"}"
         val sidecar = File(outputDir, "${meta.id}.json")
-        sidecar.writeText(buildJson(meta, 0, 0, emptyList(), emptyList(), renderError = t.stackTraceToString()))
+        sidecar.writeText(buildJson(meta, 0, 0, emptyList(), emptyList(), renderError = msg))
         if (publishToSdcard) publish(sidecar, pngFile = null)
     }
 
@@ -147,13 +170,16 @@ object CodeviewRuntime {
      * For instrumented runs the app is uninstalled by AGP after the test, so files in
      * externalCacheDir disappear before the host can pull them. Use UiAutomation to shell-out
      * (uid 2000, has write access to /sdcard) and copy sidecars to a shared location that
-     * survives uninstall. The sentinel file `__codeview_published__` flags this mode.
+     * survives uninstall. The sentinel file `__codeview_published__` flags this mode. Wipe the
+     * publish dir up front so leaked sidecars from a previous interrupted run don't pollute
+     * this run's output.
      */
     private fun preparePublishDir() {
         try {
             val ui = androidx.test.platform.app.InstrumentationRegistry
                 .getInstrumentation().uiAutomation
             val publishDir = "/sdcard/codeview-sidecars"
+            ui.executeShellCommand("rm -rf $publishDir").close()
             ui.executeShellCommand("mkdir -p $publishDir").close()
             ui.executeShellCommand("chmod 777 $publishDir").close()
         } catch (t: Throwable) {

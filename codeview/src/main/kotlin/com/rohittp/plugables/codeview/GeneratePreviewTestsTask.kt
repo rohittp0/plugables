@@ -103,8 +103,10 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
             val sidecarFile = File(previousDir, "${spec.id}.json")
             if (!sidecarFile.isFile) continue
             val parsed = runCatching { SidecarReader.read(sidecarFile.readText()) }.getOrNull() ?: continue
-            // Schema must be v2+ (older sidecars don't carry sourceHash) and the hash must match.
-            if (parsed.schemaVersion >= 2 && parsed.sourceHash == spec.sourceHash) {
+            // Skip only if: schema is v2+ (carries sourceHash), the hash matches, AND the
+            // previous render didn't fail. A sidecar with `renderError` set means the last run
+            // didn't actually capture this preview — re-render even though source is unchanged.
+            if (parsed.schemaVersion >= 2 && parsed.sourceHash == spec.sourceHash && parsed.renderError == null) {
                 skip.add(spec.id)
             }
         }

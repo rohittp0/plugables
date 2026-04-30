@@ -59,7 +59,16 @@ abstract class CodeviewReportTask : DefaultTask() {
                 rendered.add(RenderedPreview(spec, imagePath = null, nodes = emptyList(), renderedTexts = emptyList()))
                 continue
             }
-            val parsed = SidecarReader.read(sidecarFile.readText())
+            val parsed = runCatching { SidecarReader.read(sidecarFile.readText()) }.getOrElse { t ->
+                logger.warn("[codeview] Could not parse sidecar ${sidecarFile.name}: ${t.message}")
+                rendered.add(
+                    RenderedPreview(
+                        spec, imagePath = null, nodes = emptyList(), renderedTexts = emptyList(),
+                        renderError = "Sidecar parse failed: ${t.message ?: t.javaClass.simpleName}",
+                    )
+                )
+                continue
+            }
             dimensions[spec.id] = parsed.imageWidth to parsed.imageHeight
             val sidecarRenderError = parsed.renderError
 

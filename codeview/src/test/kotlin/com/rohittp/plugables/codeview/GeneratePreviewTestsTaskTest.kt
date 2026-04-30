@@ -122,6 +122,23 @@ class GeneratePreviewTestsTaskTest {
     }
 
     @Test
+    fun `sidecar with renderError is treated as stale even when sourceHash matches`(@org.junit.jupiter.api.io.TempDir tmp: File) {
+        val task = setupTask(tmp)
+        task.generate()
+        val previewId = previewIdFromRegistry(registry(tmp).readText())
+        val hash = sourceHashFromRegistry(registry(tmp).readText())
+
+        File(tmp, "out/prev-sidecars").apply { mkdirs() }
+        File(tmp, "out/prev-sidecars/$previewId.json").writeText(
+            """{"schemaVersion":3,"id":"$previewId","sourceHash":"$hash","imageWidth":0,"imageHeight":0,"renderError":"boom","renderedTexts":[],"nodes":[]}"""
+        )
+
+        task.generate()
+        // Even though the source hash matches, last run failed → must re-render.
+        assertEquals(emptyList(), skippedIdsBlock(registry(tmp).readText()))
+    }
+
+    @Test
     fun `multiple previews across files, only matching one is skipped`(@org.junit.jupiter.api.io.TempDir tmp: File) {
         val files = mapOf(
             "Home.kt" to singlePreviewSrc,
