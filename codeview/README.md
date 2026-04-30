@@ -53,7 +53,7 @@ You need an `Activity` registered in your **main** `AndroidManifest.xml` with a 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "1.2.0"
+    id("com.rohittp.plugables.codeview") version "1.3.0"
 }
 
 android {
@@ -92,7 +92,7 @@ Run: `./gradlew :app:codeviewReportDebug`. The report will list every preview wi
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "1.2.0"
+    id("com.rohittp.plugables.codeview") version "1.3.0"
 }
 
 android {
@@ -164,7 +164,8 @@ Five non-obvious things forced the current shape of the plugin; document them so
   ```
 - **Private `@Preview` functions are skipped.** Top-level `private fun` in Kotlin is file-scoped, so generated test files in another file can't invoke them. Codeview logs a warning listing every skipped FQN — change them to `internal fun` (or drop the modifier) to include them in the report.
 - **Preview ids are stable across runs and unique across files.** The id format is `Codeview_<funName>_<8-hex>` where the hex disambiguator is derived from the source file path and the preview FQN. Two `@Preview fun MyPreview()` declared in different files no longer collide on the test class name or sidecar file.
-- **Incremental rendering (v1.2+).** Each sidecar JSON now stores a SHA-256 of its source file. On subsequent runs, codeview marks unchanged previews `@Ignore("codeview: source unchanged since last render")` so JUnit dispatches them in milliseconds and the device skips the expensive `captureToImage` step. A typical no-op rerun drops `connectedAndroidTest` time from "every preview re-rendered" to "instrumentation overhead only". Granularity is per `.kt` file: editing any preview in a file re-renders all previews in that file. Cross-file dependencies (themes, shared composables, resources) aren't tracked — use `./gradlew :app:codeviewReportDebug --rerun-tasks` to force a full re-render when they change.
+- **Incremental rendering (v1.2+).** Each sidecar JSON stores a SHA-256 of its source file. On subsequent runs, codeview's batched test skips previews whose hash matches the previous run, so the device avoids the expensive `captureToImage` step. Granularity is per `.kt` file: editing any preview in a file re-renders all previews in that file. Cross-file dependencies (themes, shared composables, resources) aren't tracked — use `./gradlew :app:codeviewReportDebug --rerun-tasks` to force a full re-render when they change.
+- **Batched rendering (v1.3+).** Codeview now generates a single `CodeviewBatchTest` with one `@Test fun renderAll()` that loops over a registry of every preview in the module, instead of one test class per preview. The Activity launches once, the Compose runtime initialises once, and unchanged previews are filtered inside the loop via a `SKIPPED_IDS` set. This removes the per-test `Activity.onCreate` + Compose-init overhead that previously dominated reruns. Trade-off: JUnit reports show one test row instead of N, and a render exception in one preview no longer fails an isolated JUnit row — the failure is recorded in that preview's sidecar (`renderError` field, schema 3) and surfaced on the report card. Other previews in the batch keep going.
 
 ## v1 limitations
 

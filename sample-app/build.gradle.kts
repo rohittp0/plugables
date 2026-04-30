@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("com.android.application") version "9.2.0"
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
-    id("com.rohittp.plugables.codeview") version "1.0.0"
+    id("com.rohittp.plugables.codeview") version "1.3.0"
     id("com.rohittp.plugables.typed-events") version "1.0.0"
     id("com.rohittp.plugables.viewmodel-stub") version "1.0.0"
 }
