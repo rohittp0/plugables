@@ -53,7 +53,7 @@ You need an `Activity` registered in your **main** `AndroidManifest.xml` with a 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "1.3.0"
+    id("com.rohittp.plugables.codeview") version "1.3.1"
 }
 
 android {
@@ -92,7 +92,7 @@ Run: `./gradlew :app:codeviewReportDebug`. The report will list every preview wi
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.rohittp.plugables.codeview") version "1.3.0"
+    id("com.rohittp.plugables.codeview") version "1.3.1"
 }
 
 android {
