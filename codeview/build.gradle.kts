@@ -5,7 +5,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-version = "1.3.1"
+version = "1.2.0"
 
 kotlin {
     compilerOptions {
