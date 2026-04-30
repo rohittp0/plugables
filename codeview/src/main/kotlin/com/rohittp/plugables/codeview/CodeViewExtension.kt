@@ -40,7 +40,10 @@ abstract class CodeViewExtension @Inject constructor(layout: ProjectLayout) {
     abstract val openOnComplete: Property<Boolean>
 
     init {
-        sourceDirs.from(layout.projectDirectory.dir("src/main/kotlin"))
+        sourceDirs.from(
+            layout.projectDirectory.dir("src/main/kotlin"),
+            layout.projectDirectory.dir("src/main/java"),
+        )
         outputDir.convention(layout.buildDirectory.dir("reports/codeview"))
         ideScheme.convention("idea")
         testMode.convention("unit")

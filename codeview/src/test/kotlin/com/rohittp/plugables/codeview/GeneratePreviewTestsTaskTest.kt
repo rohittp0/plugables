@@ -33,19 +33,24 @@ class GeneratePreviewTestsTaskTest {
 
         task.generate()
 
-        val testFile = File(tmp, "out/tests/com/rohittp/plugables/codeview/generated/Codeview_HomeScreenPreview_0Test.kt")
-        assertTrue(testFile.exists())
+        val generatedDir = File(tmp, "out/tests/com/rohittp/plugables/codeview/generated")
+        val testFile = generatedDir.listFiles { f ->
+            f.name.startsWith("Codeview_HomeScreenPreview_") && f.name.endsWith("Test.kt")
+        }?.singleOrNull()
+        assertTrue(testFile != null && testFile.exists(), "expected one generated test file for HomeScreenPreview")
+        val className = testFile.nameWithoutExtension
         val text = testFile.readText()
-        assertTrue(text.contains("class Codeview_HomeScreenPreview_0Test"))
+        assertTrue(text.contains("class $className"))
         assertTrue(text.contains("com.example.app.HomeScreenPreview()"))
         assertTrue(text.contains("CodeviewRuntime.renderAndCapture"))
         assertTrue(text.contains("@RunWith(AndroidJUnit4::class)"))
 
-        val helper = File(tmp, "out/tests/com/rohittp/plugables/codeview/generated/CodeviewRuntime.kt")
+        val helper = File(generatedDir, "CodeviewRuntime.kt")
         assertTrue(helper.exists(), "runtime helper missing")
 
+        val previewId = className.removeSuffix("Test")
         val index = File(tmp, "out/preview-index.json").readText()
-        assertTrue(index.contains("\"id\":\"Codeview_HomeScreenPreview_0\""))
+        assertTrue(index.contains("\"id\":\"$previewId\""))
         assertTrue(index.contains("\"previewFqn\":\"com.example.app.HomeScreenPreview\""))
     }
 }
