@@ -36,11 +36,8 @@ gradlePlugin {
 }
 
 mavenPublishing {
-    publishToMavenCentral()
-    // Skip signing when signing keys aren't configured (local publishToMavenLocal).
-    if (System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null) {
-        signAllPublications()
-    }
+    // publishToMavenCentral(automaticRelease = true) and signing are configured centrally in
+    // the root build.gradle.kts `subprojects { }` block.
 
     pom {
         name.set("ViewModelStub")

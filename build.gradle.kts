@@ -14,4 +14,18 @@ subprojects {
             "Maven Central publishing isn't config-cache compatible yet — gradle/gradle#22779."
         )
     }
+
+    // Centralised publishing config — each plugin only needs its own `pom { }` block.
+    // automaticRelease=true flips Sonatype Central Portal deployments to "released" once
+    // validation passes, removing the manual click-to-publish step. Local
+    // `publishToMavenLocal` is unaffected (no Central Portal involvement).
+    plugins.withId("com.vanniktech.maven.publish") {
+        extensions.configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
+            publishToMavenCentral(automaticRelease = true)
+            // Skip signing when no key is configured (local publishToMavenLocal flows).
+            if (System.getenv("ORG_GRADLE_PROJECT_signingInMemoryKey") != null) {
+                signAllPublications()
+            }
+        }
+    }
 }

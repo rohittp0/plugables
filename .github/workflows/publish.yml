@@ -29,13 +29,19 @@ jobs:
               | tr ',' '\n' | tr -d ' ' | grep -v '^$' \
               | jq -R -s -c 'split("\n") | map(select(length > 0))')
           else
-            plugins=$(
-              git diff --name-only HEAD~1 HEAD 2>/dev/null \
-                | grep -E '^[^/]+/build\.gradle\.kts$' \
-                | cut -d/ -f1 \
-                | sort -u \
-                | jq -R -s -c 'split("\n") | map(select(length > 0))'
-            )
+            # Only treat a plugin as changed if its `version = "..."` line was added or removed
+            # in this push. Other build-script edits (publishing config, dep tweaks) don't
+            # warrant a publish — Maven Central rejects republishing the same GAV anyway.
+            changed_files=$(git diff --name-only HEAD~1 HEAD 2>/dev/null \
+              | grep -E '^[^/]+/build\.gradle\.kts$' || true)
+            list=()
+            for f in $changed_files; do
+              if git diff HEAD~1 HEAD -- "$f" | grep -qE '^[+-]version\s*=\s*"'; then
+                list+=("$(dirname "$f")")
+              fi
+            done
+            plugins=$(printf '%s\n' "${list[@]}" | sort -u \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
           fi
           echo "plugins=${plugins:-[]}" >> "$GITHUB_OUTPUT"
           echo "Changed plugins: ${plugins:-[]}"
