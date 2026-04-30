@@ -14,8 +14,15 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SkipWhenEmpty
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 import java.io.File
 
+@DisableCachingByDefault(
+    because = "Reads the previous run's pulled sidecars (`previousSidecarsDir`) at execution " +
+        "time to decide which previews to mark @Ignore. That dir is also `pullCodeviewSidecars`'s " +
+        "output, so declaring it as a cacheable input would create a producer-consumer cycle. " +
+        "The task is cheap (a few small text writes) and is run on every invocation."
+)
 abstract class GeneratePreviewTestsTask : DefaultTask() {
 
     @get:InputFiles
