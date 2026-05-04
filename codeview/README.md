@@ -105,8 +105,10 @@ dependencies {
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.04.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4-android")
     androidTestImplementation("androidx.compose.ui:ui-tooling-data")
+    androidTestImplementation("androidx.test:core:1.7.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test:rules:1.7.0")
+    androidTestImplementation("androidx.test:monitor:1.7.2")  // see note below
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -118,6 +120,8 @@ codeview {
     testMode.set("instrumented")
 }
 ```
+
+> **Note on `androidx.test:monitor`.** `ActivityScenario` (used internally by `runAndroidComposeUiTest`) needs `androidx.test.internal.platform.app.ActivityInvoker`, which lives in `androidx.test:monitor`. This is normally pulled transitively by `androidx.test:core` / `:runner`. **AGP 9.x with the test orchestrator** (`testOptions { execution = "ANDROIDX_TEST_ORCHESTRATOR" }`) strips monitor's classes out of the test APK on the assumption orchestrator provides them — which only holds for orchestrator-managed runs, not for codeview's plain `AndroidJUnitRunner` execution. Symptom: `NoClassDefFoundError: ActivityInvoker` at activity launch. If you hit this, either drop orchestrator for the codeview run, or stop AGP from filtering monitor by depending on it as a flat jar (`androidTestImplementation(files("libs/monitor-X.Y.Z-classes.jar"))`).
 
 Make sure an emulator or device is connected (`adb devices` shows it), then run:
 
@@ -141,18 +145,22 @@ The task logs the absolute path and a `file://` URL of the generated `index.html
 
 - **Home** — a responsive grid of cards (one per `@Preview`), each showing the rendered screenshot, the preview name, and a node count.
 - **Search** — the search box on the home page filters by preview name, slot-tree node names, and the *rendered* text strings collected from Compose's semantics tree. So if your code says `Text(stringResource(R.string.welcome))` and the resolved value is "Welcome back", searching `welcome back` finds the preview.
-- **Detail view** — clicking a card navigates to `#preview-id` and shows the screenshot at full resolution. A sidebar lists every other preview (one click to switch) and an **← All previews** link returns to the grid. URLs are shareable; browser back/forward work.
-- **Hover tooltip** — every clickable overlay shows a tooltip with the composable name, the file:line label, and the actual line of Kotlin source from your project. Click the overlay to deep-link into your IDE at that exact line.
+- **Detail view** — clicking a card navigates to `#preview-id` and shows the screenshot. A sidebar lists every other preview (one click to switch) and an **← All previews** link returns to the grid. URLs are shareable; browser back/forward work.
+- **Zoom controls** — each detail view has a toolbar above the screenshot with `Fit` (default; fits to the viewport), `1:1`, `+` and `−` buttons. The viewport scrolls when zoomed past fit so you can pan around large screens. Bounding boxes scale with the image.
+- **Hover overlays** — bounding boxes are invisible by default and outlined on hover. **Source-backed overlays** (your composables) are blue and link into your IDE at the exact line on click. **Library/internal overlays** (Material, Foundation, Compose internals — they don't carry source attribution) are gray, hover-only, non-clickable. The hover tooltip shows the composable name, file:line, and the actual line of Kotlin source.
 
 ## Why this is the way it is
 
-Five non-obvious things forced the current shape of the plugin; document them so the next person doesn't have to relearn:
+Several non-obvious things forced the current shape of the plugin; document them so the next person doesn't have to relearn:
 
 1. **The unit-test APK uses your main `AndroidManifest.xml`, not the merged unit-test one.** AGP packages `apk-for-local-test.ap_` from the main source set; entries you put under `src/test/AndroidManifest.xml` never reach Robolectric's `PackageManager`. That's why `testActivityClass` must point at an activity already registered in main.
 2. **Robolectric PR #4736 enforces strict activity resolution.** Even with an explicit component (`cmp=...`) in the launch intent, it requires the activity at that component to have a matching `MAIN/LAUNCHER` intent filter. Hence the recommendation above to add such a filter to whichever activity codeview launches.
 3. **`LocalInspectionTables` alone doesn't populate.** You also have to add `currentComposer.compositionData` to the set inside the composition itself — that's the same pattern Layout Inspector uses internally.
-4. **AGP uninstalls the app after `connected*AndroidTest`.** Anything written to the app's `externalCacheDir` is gone before the host can `adb pull` it. The instrumented helper republishes sidecars to `/sdcard/codeview-sidecars/` from inside the test process, using `UiAutomation.executeShellCommand` (uid 2000, has write access to `/sdcard`).
-5. **`adb` is rarely on Gradle's `PATH`.** The pull task resolves it from `local.properties#sdk.dir`, then `ANDROID_HOME`, then `ANDROID_SDK_ROOT`, falling back to `adb` on the path as a last resort.
+4. **`LocalInspectionTables` doesn't propagate into subcompositions.** `LazyVerticalGrid`, `LazyRow`, `SubcomposeLayout`, etc. each create a separate composition that does **not** register with our `Inspectable`'s tables. The slot-tree walk would then only see one item per lazy container. Codeview compensates with a secondary walk of the unmerged semantics tree (`onAllNodes(isRoot(), useUnmergedTree = true)`) that *does* see every laid-out child, and emits a synthetic bounding box per item that mapTree missed. These boxes don't carry source-line info (semantics doesn't record it), so they render as the gray non-clickable variant.
+5. **Dialog/Popup/BottomSheet previews mount a second window.** The activity's main compose root ends up at 0×0 because content lives in the dialog's window. `onRoot()` would throw `Expected exactly '1' node but found '2'`. The runtime instead enumerates all roots and picks the **largest by area**, which targets the window with the actual content.
+6. **An unhandled throw inside a composable cancels the Compose `Recomposer`.** Compose forbids `try/catch` around composable invocations, so we can't recover in-line. Once the Recomposer is cancelled, every subsequent preview in the batch fails with `IllegalStateException: No compose hierarchies found in the app`. Use `excludePreviews` (see below) to skip previews that fundamentally can't render in the test environment — e.g. a composable that calls `hiltViewModel()` against a plain `ComponentActivity` host. The cascade then doesn't start.
+7. **AGP uninstalls the app after `connected*AndroidTest`.** Anything written to the app's `externalCacheDir` is gone before the host can `adb pull` it. The instrumented helper republishes sidecars to `/sdcard/codeview-sidecars/` from inside the test process, using `UiAutomation.executeShellCommand` (uid 2000, has write access to `/sdcard`). It also drops a `__codeview_published__` sentinel into that dir so the host pull task can tell *this run's* output from a previous run's leftovers — if the sentinel isn't present, the pull task fails the build instead of silently re-publishing stale data.
+8. **`adb` is rarely on Gradle's `PATH`.** The pull task resolves it from `local.properties#sdk.dir`, then `ANDROID_HOME`, then `ANDROID_SDK_ROOT`, falling back to `adb` on the path as a last resort.
 
 ## Configuration notes
 
@@ -162,19 +170,36 @@ Five non-obvious things forced the current shape of the plugin; document them so
       sourceDirs.from(layout.projectDirectory.dir("src/main/java"))
   }
   ```
+- **Excluding previews that can't render.** Use `excludePreviews` to skip individual `@Preview` functions by display name. Excluded previews are filtered out at source-parse time, never enter the registry, never execute, and don't appear in the report. Use this for previews that fundamentally can't render in codeview's test environment — most commonly composables that call `hiltViewModel()` against the plain-`ComponentActivity` host (the throw from Hilt would otherwise cancel the Compose `Recomposer` and cascade-fail every later preview in the batch with "No compose hierarchies found"):
+  ```kotlin
+  codeview {
+      excludePreviews.add("HomeScreenPreview")
+      excludePreviews.add("OnboardingScreenPreview")
+  }
+  ```
 - **Private `@Preview` functions are skipped.** Top-level `private fun` in Kotlin is file-scoped, so generated test files in another file can't invoke them. Codeview logs a warning listing every skipped FQN — change them to `internal fun` (or drop the modifier) to include them in the report.
 - **Preview ids are stable across runs and unique across files.** The id format is `Codeview_<funName>_<8-hex>` where the hex disambiguator is derived from the source file path and the preview FQN. Two `@Preview fun MyPreview()` declared in different files no longer collide on the test class name or sidecar file.
-- **Incremental rendering (v1.2+).** Each sidecar JSON stores a SHA-256 of its source file. On subsequent runs, codeview's batched test skips previews whose hash matches the previous run, so the device avoids the expensive `captureToImage` step. Granularity is per `.kt` file: editing any preview in a file re-renders all previews in that file. Cross-file dependencies (themes, shared composables, resources) aren't tracked — use `./gradlew :app:codeviewReportDebug --rerun-tasks` to force a full re-render when they change.
-- **Batched rendering (v1.3+).** Codeview now generates a single `CodeviewBatchTest` with one `@Test fun renderAll()` that loops over a registry of every preview in the module, instead of one test class per preview. The Activity launches once, the Compose runtime initialises once, and unchanged previews are filtered inside the loop via a `SKIPPED_IDS` set. This removes the per-test `Activity.onCreate` + Compose-init overhead that previously dominated reruns. Trade-off: JUnit reports show one test row instead of N, and a render exception in one preview no longer fails an isolated JUnit row — the failure is recorded in that preview's sidecar (`renderError` field, schema 3) and surfaced on the report card. Other previews in the batch keep going.
+- **Incremental rendering (v1.2+).** Each sidecar JSON stores a SHA-256 of its source file. On subsequent runs, codeview's batched test skips previews whose hash matches the previous run, so the device avoids the expensive `captureToImage` step. Granularity is per `.kt` file: editing any preview in a file re-renders all previews in that file. Cross-file dependencies (themes, shared composables, resources) aren't tracked — use `./gradlew :app:codeviewReportDebug --rerun-tasks` *and* delete `app/build/generated/codeview/sidecars/` to force a full re-render when they change. (`--rerun-tasks` alone re-runs the tasks but the skip set is computed from existing sidecar files.)
+- **Skip-set is conservative (v1.3+).** A previous-run sidecar is reused only if it carries actually-usable data: matching `sourceHash`, no `renderError`, `imageWidth > 0`, `imageHeight > 0`, and a non-empty `nodes` array. Silent capture failures (e.g. a 0×0 preview that wrote a sidecar with no bitmap) are *not* latched into the skip set on the next run.
+- **Batched rendering (v1.3+).** Codeview now generates a single `CodeviewBatchTest` with one `@Test fun renderAll()` that loops over a registry of every preview in the module, instead of one test class per preview. The Activity launches once, the Compose runtime initialises once, and unchanged previews are filtered inside the loop via a `SKIPPED_IDS` set. This removes the per-test `Activity.onCreate` + Compose-init overhead that previously dominated reruns. Trade-off: JUnit reports show one test row instead of N, and a render exception in one preview no longer fails an isolated JUnit row — the failure is recorded in that preview's sidecar (`renderError` field, schema 3) and surfaced on the report card. Other previews in the batch keep going. The default `runAndroidComposeUiTest` timeout is bumped to 30 minutes (1 minute is too tight for batches of ~50+ previews on real devices).
+
+## Troubleshooting
+
+- **`pullCodeviewSidecars{Variant}` fails with "No sentinel `__codeview_published__` on device"** — the instrumented test process never reached `CodeviewRuntime.runBatch`. Check the AGP-captured logcat under `app/build/outputs/androidTest-results/connected/<variant>/<device>/logcat-*.txt` for the underlying crash. The pull task refuses to publish a report from stale sidecars on purpose.
+- **`NoClassDefFoundError: androidx.test.internal.platform.app.ActivityInvoker`** when the test launches — `androidx.test:monitor` isn't landing in the test APK. Most common cause is **AGP 9.x + the test orchestrator** (`testOptions { execution = "ANDROIDX_TEST_ORCHESTRATOR" }` and/or `androidTestUtil(...orchestrator)`): AGP filters monitor's classes out of `mergeExtDexDebugAndroidTest` on the assumption orchestrator provides them at runtime, but that's not true for plain `AndroidJUnitRunner` + `ActivityScenario`. Either disable orchestrator for the codeview test, or add `androidx.test:monitor` as a flat-jar file dep (`androidTestImplementation(files("libs/monitor-X.Y.Z-classes.jar"))`) so AGP can't strip it.
+- **Most/all previews end up with "No compose hierarchies found in the app"** — one preview earlier in the batch threw inside its composable and cancelled the Compose `Recomposer`; the rest are collateral damage. Find the first failing preview in the build's sidecar JSON (look for the first non-null `renderError` in batch order) and add it to `excludePreviews`. The most common offenders are previews that call `hiltViewModel()` against the plain `ComponentActivity` host.
+- **Preview rendered at 0×0** in `renderError` — the preview itself produced no laid-out content. Either wrap it in a sized container (`Box(Modifier.size(360.dp, 640.dp)) { … }`) or pin the size on the annotation (`@Preview(widthDp = 360, heightDp = 640)`).
+- **Bounding boxes for lazy-grid items are missing** — codeview captures these via a secondary semantic-tree walk, which only emits if the items are actually laid out at render time. Lazy layouts in inspection mode sometimes only compose the first visible cell; if your preview is meaningfully smaller than the grid's content, set the grid's height explicitly so all rows fit.
 
 ## v1 limitations
 
 - **`unit` mode emits no PNGs.** `captureToImage()` times out under Robolectric's headless graphics mode. Use `testMode = "instrumented"` if you need bitmaps.
-- **Source-line precision** stops at what Compose's `sourceInformation` records — typically the call site of each composable. Lambda contents (e.g. inside `Text("foo")`) resolve to the `Text(...)` call site.
+- **Source-line precision** stops at what Compose's `sourceInformation` records — typically the call site of each composable. Lambda contents (e.g. inside `Text("foo")`) resolve to the `Text(...)` call site. Items inside `LazyRow`/`LazyVerticalGrid`/`SubcomposeLayout` show up as gray non-clickable boxes (semantics doesn't carry source info).
 - Only JetBrains `idea://` and VS Code `vscode://` URL schemes are supported. Browser must register the protocol handler.
 - `androidx.compose.ui.tooling.data` is `@UiToolingDataApi` (experimental). Bumping Compose may require codeview to follow.
 - `@PreviewParameter` variants render as separate sequenced entries (`_0`, `_1`, …).
 - Instrumented mode requires a device/emulator at run time; CI has to provision one (managed devices, GMD, or a separate emulator step).
+- **Hilt-aware test activity not yet supported.** Composables that call `hiltViewModel()` need a `HiltTestActivity` host with `@HiltAndroidTest` plumbing; codeview only generates plain `runAndroidComposeUiTest(activityClass = ...)` blocks. For now, exclude such previews via `excludePreviews`. Native Hilt support is on the roadmap.
 
 ## Future work
 

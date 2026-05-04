@@ -297,8 +297,10 @@
     <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-test-junit4-android"</span><span class="op">)</span>
     <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-tooling"</span><span class="op">)</span>
     <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-tooling-data"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test:core:1.7.0"</span><span class="op">)</span>
     <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test:runner:1.7.0"</span><span class="op">)</span>
     <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test:rules:1.7.0"</span><span class="op">)</span>
+    <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test:monitor:1.7.2"</span><span class="op">)</span>  <span class="cm">// see note below</span>
     <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"androidx.test.ext:junit:1.3.0"</span><span class="op">)</span>
     <span class="fn">androidTestImplementation</span><span class="op">(</span><span class="st">"junit:junit:4.13.2"</span><span class="op">)</span>
     <span class="fn">debugImplementation</span><span class="op">(</span><span class="st">"androidx.compose.ui:ui-test-manifest"</span><span class="op">)</span>
@@ -309,6 +311,25 @@
     <span class="k">testActivityClass</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"androidx.activity.ComponentActivity"</span><span class="op">)</span>
     <span class="k">testMode</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"instrumented"</span><span class="op">)</span>
 <span class="op">}</span></code></pre>
+      </div>
+
+      <div class="callout">
+        <p class="callout-title">Note on <code>androidx.test:monitor</code></p>
+        <p>
+        <code>ActivityScenario</code> (used internally by
+        <code>runAndroidComposeUiTest</code>) needs
+        <code>androidx.test.internal.platform.app.ActivityInvoker</code>, which lives in
+        <code>androidx.test:monitor</code>. Normally pulled transitively by
+        <code>:core</code>/<code>:runner</code>. <strong>AGP 9.x with the test
+        orchestrator</strong> (<code>testOptions { execution = "ANDROIDX_TEST_ORCHESTRATOR" }</code>)
+        strips monitor's classes out of the test APK on the assumption orchestrator
+        provides them — which only holds for orchestrator-managed runs, not for codeview's
+        plain <code>AndroidJUnitRunner</code> execution. Symptom:
+        <code>NoClassDefFoundError: ActivityInvoker</code> at activity launch. If you hit
+        this, either drop orchestrator for the codeview run, or stop AGP from filtering
+        monitor by depending on it as a flat jar
+        (<code>androidTestImplementation(files("libs/monitor-X.Y.Z-classes.jar"))</code>).
+        </p>
       </div>
 
       <p>Then run the report — codeview will install + run on whichever emulator <code>adb devices</code> shows:</p>
@@ -407,20 +428,40 @@
 
       <h3>Detail — single preview with sidebar</h3>
       <p>
-        Clicking a card navigates to <code>#preview-id</code> and shows the screenshot at
-        full resolution. A 240px sidebar lists every other preview by name (one click to
-        switch), and a <strong>← All previews</strong> link in the top bar returns to the
-        grid. Browser back/forward work; URLs are shareable.
+        Clicking a card navigates to <code>#preview-id</code> and shows the screenshot. A
+        240px sidebar lists every other preview by name (one click to switch), and a
+        <strong>← All previews</strong> link in the top bar returns to the grid. Browser
+        back/forward work; URLs are shareable.
+      </p>
+
+      <h3>Zoom controls</h3>
+      <p>
+        A toolbar above each detail screenshot offers <strong>Fit</strong> (default —
+        scales the image to fit the viewport, capped at 1×), <strong>1:1</strong>,
+        <strong>+</strong> and <strong>−</strong> buttons, with the current scale shown
+        as a percentage. The viewport scrolls when zoomed past fit so you can pan around
+        large screenshots. Bounding-box overlays scale with the image so they stay aligned
+        at any zoom level.
       </p>
 
       <h3>Hover — line-of-source tooltip</h3>
       <p>
-        Each composable that resolved to a file in your <code>sourceDirs</code> renders as
-        a clickable rectangle on top of the screenshot. Overlapping overlays are sorted
-        smallest-on-top so the most specific composable wins hover. Hovering shows a
-        tooltip with the composable name, the file:line label, and the actual line of
-        Kotlin from your project — no IDE jump needed to see the call. Clicking the
-        overlay deep-links to that line.
+        Bounding boxes are invisible by default and outlined on hover. Two visual styles:
+      </p>
+      <ul>
+        <li><strong>Source-backed overlays</strong> (your composables, with file:line
+            attribution from Compose's <code>sourceInformation</code>) are blue, clickable
+            anchors that deep-link into your IDE at the exact line.</li>
+        <li><strong>Library/internal overlays</strong> (Material, Foundation, Compose
+            internals — these don't carry source attribution in their compiled bytecode)
+            are gray, hover-only, non-clickable. They still appear so you can inspect the
+            full layout structure of the rendered preview.</li>
+      </ul>
+      <p>
+        Hovering shows a tooltip with the composable name, the file:line label, and (for
+        source-backed overlays) the actual line of Kotlin from your project — no IDE jump
+        needed to see the call. Overlapping overlays are sorted smallest-on-top so the
+        most specific composable wins hover.
       </p>
 
       <h3>Auto-open</h3>
@@ -484,9 +525,32 @@
               <td><code>true</code></td>
               <td>If true, the generated <code>index.html</code> is opened in the default browser when the report task finishes. Set to <code>false</code> in CI.</td>
             </tr>
+            <tr>
+              <td><code>excludePreviews</code></td>
+              <td><code>ListProperty&lt;String&gt;</code></td>
+              <td>empty</td>
+              <td>Display names of <code>@Preview</code> functions to skip entirely. Excluded previews are filtered at source-parse time, never enter the registry, never execute, and never appear in the report. Use this for previews that fundamentally can't render in the test environment — e.g. composables that call <code>hiltViewModel()</code> against the plain <code>ComponentActivity</code> host (the throw would otherwise cancel the Compose <code>Recomposer</code> and cascade-fail every later preview in the batch).</td>
+            </tr>
           </tbody>
         </table>
       </div>
+
+      <h3>Excluding problematic previews</h3>
+      <p>
+        Add display names (the <code>@Preview</code> function's simple name) to
+        <code>excludePreviews</code>:
+      </p>
+      <pre><code>codeview {
+    testMode.set("instrumented")
+    testActivityClass.set("androidx.activity.ComponentActivity")
+    excludePreviews.add("HomeScreenPreview")
+    excludePreviews.add("OnboardingScreenPreview")
+}</code></pre>
+      <p>
+        How to find the names of failing previews: open the report and look for cards with
+        a red <em>render failed</em> badge — the failures cascade in batch order, so the
+        first failing one is usually the cause.
+      </p>
     </section>
 
     <!-- ─── Tasks ────────────────────────────────────────── -->
@@ -592,7 +656,7 @@
     <section id="why" class="doc-section">
       <h2>Why It's Built This Way</h2>
       <p>
-        Five non-obvious things forced the current shape of the plugin. They're worth
+        Several non-obvious things forced the current shape of the plugin. They're worth
         knowing if you ever need to debug a setup or extend the plugin:
       </p>
 
@@ -619,12 +683,46 @@
           handle this.
         </li>
         <li>
+          <strong><code>LocalInspectionTables</code> doesn't propagate into subcompositions.</strong>
+          <code>LazyVerticalGrid</code>, <code>LazyRow</code>, <code>SubcomposeLayout</code>,
+          etc. each create a separate composition that does <em>not</em> register with our
+          <code>Inspectable</code>'s tables — the slot-tree walk would then only see one
+          item per lazy container. Codeview compensates with a secondary walk of the
+          unmerged semantics tree (<code>onAllNodes(isRoot(), useUnmergedTree = true)</code>)
+          that <em>does</em> see every laid-out child, and emits a synthetic bounding box
+          per item that <code>mapTree</code> missed. These boxes don't carry source-line
+          info (semantics doesn't record it), so they render as the gray non-clickable
+          variant.
+        </li>
+        <li>
+          <strong>Dialog/Popup/BottomSheet previews mount a second window.</strong> The
+          activity's main compose root ends up at 0×0 because content lives in the dialog's
+          window. <code>onRoot()</code> would throw
+          <code>Expected exactly '1' node but found '2'</code>. The runtime instead
+          enumerates all roots and picks the <strong>largest by area</strong>, which targets
+          the window with the actual content.
+        </li>
+        <li>
+          <strong>An unhandled throw inside a composable cancels the Compose
+          <code>Recomposer</code>.</strong> Compose forbids <code>try</code>/<code>catch</code>
+          around composable invocations, so we can't recover in-line. Once the Recomposer is
+          cancelled, every subsequent preview in the batch fails with
+          <code>IllegalStateException: No compose hierarchies found in the app</code>.
+          The escape hatch is the <code>excludePreviews</code> DSL — skip previews that
+          fundamentally can't render in the test environment (most commonly composables
+          calling <code>hiltViewModel()</code> against a plain <code>ComponentActivity</code>
+          host) so the cascade never starts.
+        </li>
+        <li>
           <strong>AGP uninstalls the app after <code>connected*AndroidTest</code>.</strong>
           Anything written to the app's <code>externalCacheDir</code> is gone before the host
           can <code>adb pull</code> it. The instrumented helper republishes sidecars to
           <code>/sdcard/codeview-sidecars/</code> from inside the test process, using
           <code>UiAutomation.executeShellCommand</code> (uid 2000, has write access to
-          <code>/sdcard</code>).
+          <code>/sdcard</code>). It also drops a <code>__codeview_published__</code> sentinel
+          so the host pull task can tell <em>this run</em>'s output from a previous run's
+          leftovers — if the sentinel is missing, the pull task fails the build instead of
+          silently re-publishing stale data.
         </li>
         <li>
           <strong>In Compose 1.11+, <code>Group.location</code> is no longer populated.</strong>
@@ -693,15 +791,62 @@
           (managed devices, GMD, or a separate emulator step). When multiple devices are
           attached, codeview targets the first emulator it finds.
         </li>
+        <li>
+          <strong>Hilt-aware test activity not yet supported.</strong> Composables that call
+          <code>hiltViewModel()</code> need a <code>HiltTestActivity</code> host with
+          <code>@HiltAndroidTest</code> plumbing; codeview only generates plain
+          <code>runAndroidComposeUiTest(activityClass = ...)</code> blocks. For now, list such
+          previews in <code>excludePreviews</code>. Native Hilt support is on the roadmap.
+        </li>
+      </ul>
+
+      <h3>Troubleshooting</h3>
+      <ul>
+        <li>
+          <strong><code>pullCodeviewSidecars{Variant}</code> fails with "No sentinel
+          <code>__codeview_published__</code> on device"</strong> — the instrumented test
+          process never reached <code>CodeviewRuntime.runBatch</code>. Check the
+          AGP-captured logcat under
+          <code>app/build/outputs/androidTest-results/connected/&lt;variant&gt;/&lt;device&gt;/logcat-*.txt</code>
+          for the underlying crash. The pull task refuses to publish a report from stale
+          sidecars on purpose.
+        </li>
+        <li>
+          <strong><code>NoClassDefFoundError: ActivityInvoker</code></strong> when the test
+          launches — <code>androidx.test:monitor</code> isn't landing in the test APK. See
+          the note in <em>Mode 2 — Instrumented</em>.
+        </li>
+        <li>
+          <strong>Most/all previews end up with "No compose hierarchies found in the app"</strong>
+          — one preview earlier in the batch threw inside its composable and cancelled the
+          Compose <code>Recomposer</code>; the rest are collateral damage. Find the first
+          preview with a non-null <code>renderError</code> in batch order and add it to
+          <code>excludePreviews</code>. Most common offender: composables calling
+          <code>hiltViewModel()</code>.
+        </li>
+        <li>
+          <strong>"Preview rendered at 0×0" in <code>renderError</code></strong> — the
+          preview itself produced no laid-out content. Either wrap it in a sized container
+          (<code>Box(Modifier.size(360.dp, 640.dp)) { … }</code>) or pin the size on the
+          annotation (<code>@Preview(widthDp = 360, heightDp = 640)</code>).
+        </li>
+        <li>
+          <strong>Bounding boxes for lazy-grid items are missing</strong> — codeview captures
+          these via a secondary semantic-tree walk, which only emits if the items are
+          actually laid out at render time. If your preview is meaningfully smaller than the
+          grid's content, set the grid's height explicitly so all rows fit.
+        </li>
       </ul>
 
       <div class="callout">
         <p class="callout-title">Future work</p>
         <p>
           Auto-discovery of an existing <code>MAIN/LAUNCHER</code> activity (so
-          <code>testActivityClass</code> becomes optional), <code>androidx.test.services.storage</code>
-          to replace the <code>/sdcard</code> republish hack, runtime IDE-scheme switcher in
-          the report UI, and multi-module aggregation are all on the roadmap.
+          <code>testActivityClass</code> becomes optional),
+          <code>androidx.test.services.storage</code> to replace the
+          <code>/sdcard</code> republish hack, runtime IDE-scheme switcher in the report
+          UI, native Hilt-aware test activity, and multi-module aggregation are all on the
+          roadmap.
         </p>
       </div>
     </section>
