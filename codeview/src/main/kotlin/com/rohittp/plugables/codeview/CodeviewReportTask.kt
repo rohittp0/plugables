@@ -92,8 +92,12 @@ abstract class CodeviewReportTask : DefaultTask() {
                 )
             }
 
+            // Only surface a PNG if this run actually captured one (imageWidth/Height > 0).
+            // A stray PNG with mismatched dimensions is almost certainly leftover from a
+            // previous run where capture also worked but the surface hadn't redrawn — we'd
+            // rather show "no image" than a misleading screenshot of a different preview.
             val pngSrc = File(sidecarRoot, "${spec.id}.png")
-            val imagePath = if (pngSrc.exists()) {
+            val imagePath = if (pngSrc.exists() && parsed.imageWidth > 0 && parsed.imageHeight > 0) {
                 pngSrc.copyTo(File(previewsDir, "${spec.id}.png"), overwrite = true)
                 "previews/${spec.id}.png"
             } else null

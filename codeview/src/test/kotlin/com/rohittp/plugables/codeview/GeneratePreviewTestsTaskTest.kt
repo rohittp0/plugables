@@ -82,9 +82,7 @@ class GeneratePreviewTestsTaskTest {
         val hash = sourceHashFromRegistry(registry(tmp).readText())
 
         File(tmp, "out/prev-sidecars").apply { mkdirs() }
-        File(tmp, "out/prev-sidecars/$previewId.json").writeText(
-            """{"schemaVersion":2,"id":"$previewId","sourceHash":"$hash","imageWidth":0,"imageHeight":0,"renderedTexts":[],"nodes":[]}"""
-        )
+        File(tmp, "out/prev-sidecars/$previewId.json").writeText(usableSidecar(previewId, hash))
 
         task.generate()
         assertEquals(listOf(previewId), skippedIdsBlock(registry(tmp).readText()))
@@ -97,9 +95,7 @@ class GeneratePreviewTestsTaskTest {
         val previewId = previewIdFromRegistry(registry(tmp).readText())
 
         File(tmp, "out/prev-sidecars").apply { mkdirs() }
-        File(tmp, "out/prev-sidecars/$previewId.json").writeText(
-            """{"schemaVersion":2,"id":"$previewId","sourceHash":"deadbeef","imageWidth":0,"imageHeight":0,"renderedTexts":[],"nodes":[]}"""
-        )
+        File(tmp, "out/prev-sidecars/$previewId.json").writeText(usableSidecar(previewId, "deadbeef"))
 
         task.generate()
         assertEquals(emptyList(), skippedIdsBlock(registry(tmp).readText()))
@@ -114,7 +110,42 @@ class GeneratePreviewTestsTaskTest {
 
         File(tmp, "out/prev-sidecars").apply { mkdirs() }
         File(tmp, "out/prev-sidecars/$previewId.json").writeText(
-            """{"schemaVersion":1,"id":"$previewId","sourceHash":"$hash","imageWidth":0,"imageHeight":0,"renderedTexts":[],"nodes":[]}"""
+            """{"schemaVersion":1,"id":"$previewId","sourceHash":"$hash","imageWidth":1600,"imageHeight":2560,"renderedTexts":[],"nodes":[{"id":1,"name":"Box","bounds":{"x":0,"y":0,"width":10,"height":10},"sourceFileName":null,"packageHash":0,"line":-1,"parentId":null}]}"""
+        )
+
+        task.generate()
+        assertEquals(emptyList(), skippedIdsBlock(registry(tmp).readText()))
+    }
+
+    @Test
+    fun `sidecar with imageWidth zero is treated as stale even when sourceHash matches`(@org.junit.jupiter.api.io.TempDir tmp: File) {
+        val task = setupTask(tmp)
+        task.generate()
+        val previewId = previewIdFromRegistry(registry(tmp).readText())
+        val hash = sourceHashFromRegistry(registry(tmp).readText())
+
+        File(tmp, "out/prev-sidecars").apply { mkdirs() }
+        // A silent capture failure: dimensions are 0, no renderError, but no usable bytes.
+        File(tmp, "out/prev-sidecars/$previewId.json").writeText(
+            """{"schemaVersion":3,"id":"$previewId","sourceHash":"$hash","imageWidth":0,"imageHeight":0,"renderedTexts":[],"nodes":[]}"""
+        )
+
+        task.generate()
+        assertEquals(emptyList(), skippedIdsBlock(registry(tmp).readText()))
+    }
+
+    @Test
+    fun `sidecar with empty nodes is treated as stale even when image was captured`(@org.junit.jupiter.api.io.TempDir tmp: File) {
+        val task = setupTask(tmp)
+        task.generate()
+        val previewId = previewIdFromRegistry(registry(tmp).readText())
+        val hash = sourceHashFromRegistry(registry(tmp).readText())
+
+        File(tmp, "out/prev-sidecars").apply { mkdirs() }
+        // Image OK, but Inspectable picked up the wrong CompositionData → no nodes.
+        // We must re-render so the user actually gets bounding boxes.
+        File(tmp, "out/prev-sidecars/$previewId.json").writeText(
+            """{"schemaVersion":3,"id":"$previewId","sourceHash":"$hash","imageWidth":1600,"imageHeight":2560,"renderedTexts":[],"nodes":[]}"""
         )
 
         task.generate()
@@ -163,13 +194,14 @@ class GeneratePreviewTestsTaskTest {
         val homeHash = sourceHashFromRegistry(regText, homeId)
 
         File(tmp, "out/prev-sidecars").apply { mkdirs() }
-        File(tmp, "out/prev-sidecars/$homeId.json").writeText(
-            """{"schemaVersion":2,"id":"$homeId","sourceHash":"$homeHash","imageWidth":0,"imageHeight":0,"renderedTexts":[],"nodes":[]}"""
-        )
+        File(tmp, "out/prev-sidecars/$homeId.json").writeText(usableSidecar(homeId, homeHash))
 
         task.generate()
         assertEquals(listOf(homeId), skippedIdsBlock(registry(tmp).readText()))
     }
+
+    private fun usableSidecar(id: String, hash: String): String =
+        """{"schemaVersion":2,"id":"$id","sourceHash":"$hash","imageWidth":1600,"imageHeight":2560,"renderedTexts":[],"nodes":[{"id":1,"name":"Box","bounds":{"x":0,"y":0,"width":10,"height":10},"sourceFileName":null,"packageHash":0,"line":-1,"parentId":null}]}"""
 
     private fun previewIdFromRegistry(regText: String): String =
         Regex("""id = "(Codeview_[A-Za-z0-9_]+)",""").find(regText)!!.groupValues[1]

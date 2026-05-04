@@ -110,12 +110,22 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
             val sidecarFile = File(previousDir, "${spec.id}.json")
             if (!sidecarFile.isFile) continue
             val parsed = runCatching { SidecarReader.read(sidecarFile.readText()) }.getOrNull() ?: continue
-            // Skip only if: schema is v2+ (carries sourceHash), the hash matches, AND the
-            // previous render didn't fail. A sidecar with `renderError` set means the last run
-            // didn't actually capture this preview — re-render even though source is unchanged.
-            if (parsed.schemaVersion >= 2 && parsed.sourceHash == spec.sourceHash && parsed.renderError == null) {
-                skip.add(spec.id)
-            }
+            // Skip only if the previous run produced a *usable* sidecar:
+            //   - schema is v2+ (carries sourceHash),
+            //   - source hash still matches,
+            //   - no recorded renderError,
+            //   - bitmap actually captured (width/height > 0),
+            //   - inspector tree captured (at least one node).
+            // The last two are critical: silent capture failures produce a sidecar with
+            // imageWidth=0 / nodes=[] and no renderError, which under the old rule got
+            // permanently latched into SKIPPED_IDS even though the report had no usable
+            // data for that preview.
+            val usable = parsed.schemaVersion >= 2 &&
+                parsed.sourceHash == spec.sourceHash &&
+                parsed.renderError == null &&
+                parsed.imageWidth > 0 && parsed.imageHeight > 0 &&
+                parsed.nodes.isNotEmpty()
+            if (usable) skip.add(spec.id)
         }
         return skip
     }

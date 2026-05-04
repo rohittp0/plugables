@@ -74,7 +74,19 @@ object CodeviewRuntime {
 
         for ((meta, content) in registry) {
             if (meta.id in skippedIds) continue
+            // Drop any sidecar/PNG from a previous run before attempting capture. If this
+            // preview's render fails, we MUST NOT leave stale bytes on disk for the report
+            // to copy as if they were this run's output (was the cause of duplicate
+            // screenshots across previews).
+            File(outputDir, "${meta.id}.png").delete()
+            File(outputDir, "${meta.id}.json").delete()
             try {
+                // Reset the inspector store so `record.store.lastOrNull()` in renderOne
+                // sees exactly one entry — the one Inspectable adds when the new key
+                // mounts. Without this, prior previews' (disposed) CompositionData stay
+                // in the Set and `lastOrNull()` may pick a stale table whose nodes are
+                // gone, producing previews with empty `nodes` arrays.
+                record.store.clear()
                 // Swap content and re-key so Inspectable adds a fresh CompositionData.
                 currentKey = meta.id
                 currentContent = content
@@ -134,8 +146,22 @@ object CodeviewRuntime {
             System.err.println("[codeview] Could not collect semantics text for ${meta.id}: ${t.message}")
         }
 
+        // Force at least one frame to commit and the surface to redraw before reading
+        // pixels. `waitForIdle` only flushes recomposition; without an explicit frame
+        // advance the underlying surface can still hold the previous preview's pixels,
+        // which is what produced "wrong screenshot" reports across different previews.
+        try {
+            uiTest.mainClock.advanceTimeByFrame()
+            uiTest.waitForIdle()
+        } catch (t: Throwable) {
+            // mainClock may be unavailable in some test runners; waitForIdle alone is
+            // still better than nothing.
+            uiTest.waitForIdle()
+        }
+
         var bitmapWidth = 0
         var bitmapHeight = 0
+        var captureError: String? = null
         val pngFile = File(outputDir, "${meta.id}.png")
         try {
             val bitmap: Bitmap = uiTest.onRoot().captureToImage().asAndroidBitmap()
@@ -143,11 +169,15 @@ object CodeviewRuntime {
             bitmapHeight = bitmap.height
             pngFile.outputStream().use { os -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, os) }
         } catch (t: Throwable) {
+            // Record the failure in the sidecar so (a) the report can flag it instead of
+            // showing a stale image and (b) the skip mechanism re-renders this preview
+            // on the next run instead of latching the failure forever.
+            captureError = "${t.javaClass.simpleName}: ${t.message ?: "(no message)"}"
             System.err.println("[codeview] Skipping PNG capture for ${meta.id}: ${t.message}")
         }
 
         val sidecar = File(outputDir, "${meta.id}.json")
-        sidecar.writeText(buildJson(meta, bitmapWidth, bitmapHeight, nodes, renderedTexts, renderError = null))
+        sidecar.writeText(buildJson(meta, bitmapWidth, bitmapHeight, nodes, renderedTexts, renderError = captureError))
 
         if (publishToSdcard) publish(sidecar, pngFile)
     }
