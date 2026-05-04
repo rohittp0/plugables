@@ -170,6 +170,30 @@ class GeneratePreviewTestsTaskTest {
     }
 
     @Test
+    fun `excludePreviews filters previews out of the registry by displayName`(@org.junit.jupiter.api.io.TempDir tmp: File) {
+        val files = mapOf(
+            "Home.kt" to singlePreviewSrc,
+            "Other.kt" to """
+                package com.example.app
+                import androidx.compose.runtime.Composable
+                import androidx.compose.ui.tooling.preview.Preview
+
+                @Preview
+                @Composable
+                fun OtherPreview() { }
+            """.trimIndent(),
+        )
+        val task = setupTask(tmp, files).also {
+            it.excludePreviews.set(listOf("HomeScreenPreview"))
+        }
+        task.generate()
+
+        val regText = registry(tmp).readText()
+        assertFalse(regText.contains("HomeScreenPreview"), "excluded preview must not be in registry")
+        assertTrue(regText.contains("OtherPreview"), "non-excluded preview must remain")
+    }
+
+    @Test
     fun `multiple previews across files, only matching one is skipped`(@org.junit.jupiter.api.io.TempDir tmp: File) {
         val files = mapOf(
             "Home.kt" to singlePreviewSrc,

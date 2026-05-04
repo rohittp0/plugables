@@ -20,8 +20,9 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.tooling.data.ContextCache
 import androidx.compose.ui.tooling.data.SourceContext
 import androidx.compose.ui.tooling.data.mapTree
@@ -56,7 +57,13 @@ object CodeviewRuntime {
         val publishToSdcard = File(outputDir, "__codeview_published__").exists()
         if (publishToSdcard) preparePublishDir()
 
-        val record = androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
+        // A fresh CompositionDataRecord is installed per preview (see loop body) so each
+        // render's inspector tree is isolated — no leakage of disposed CompositionData from
+        // prior previews into `store.lastOrNull()`. The state holder below lets the single
+        // `setContent` lambda pick up whichever record is current.
+        var currentRecord by mutableStateOf(
+            androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
+        )
         var currentKey by mutableStateOf("")
         var currentContent by mutableStateOf<@Composable () -> Unit>({})
 
@@ -64,7 +71,7 @@ object CodeviewRuntime {
             // `key(currentKey)` forces a brand-new subtree per preview so each render starts
             // from a clean slot table — no `remember` leak from the previous preview.
             key(currentKey) {
-                androidx.compose.ui.tooling.Inspectable(record) {
+                androidx.compose.ui.tooling.Inspectable(currentRecord) {
                     currentContent()
                 }
             }
@@ -81,17 +88,18 @@ object CodeviewRuntime {
             File(outputDir, "${meta.id}.png").delete()
             File(outputDir, "${meta.id}.json").delete()
             try {
-                // Reset the inspector store so `record.store.lastOrNull()` in renderOne
-                // sees exactly one entry — the one Inspectable adds when the new key
-                // mounts. Without this, prior previews' (disposed) CompositionData stay
-                // in the Set and `lastOrNull()` may pick a stale table whose nodes are
-                // gone, producing previews with empty `nodes` arrays.
-                record.store.clear()
+                // Fresh record per preview: when Inspectable remounts under the new
+                // `currentKey`, it registers its CompositionData into THIS record's store
+                // only. renderOne can then trust `record.store.lastOrNull()` to be the
+                // live, current-preview tree — not a leftover from a prior iteration.
+                val freshRecord =
+                    androidx.compose.ui.tooling.CompositionDataRecord.Companion.create()
+                currentRecord = freshRecord
                 // Swap content and re-key so Inspectable adds a fresh CompositionData.
                 currentKey = meta.id
                 currentContent = content
                 uiTest.waitForIdle()
-                renderOne(uiTest, outputDir, meta, record, publishToSdcard)
+                renderOne(uiTest, outputDir, meta, freshRecord, publishToSdcard)
             } catch (t: Throwable) {
                 System.err.println("[codeview] Render failed for ${meta.id}: ${t.message}")
                 writeErrorSidecar(outputDir, meta, t, publishToSdcard)
@@ -106,44 +114,88 @@ object CodeviewRuntime {
         record: androidx.compose.ui.tooling.CompositionDataRecord,
         publishToSdcard: Boolean,
     ) {
-        // `record.store` accumulates a CompositionData per Inspectable composition. With the
-        // `key(currentKey)` swap, the most recent CompositionData reflects the current preview;
-        // older entries reference subtrees that have been disposed. mapTree on a disposed table
-        // yields no live nodes, so iterating all entries is safe — only the current one
-        // produces nodes — but for clarity we walk only the most recently added entry.
+        // Walk every CompositionData in the (per-preview, fresh) record. Compose composables
+        // like LazyColumn/LazyVerticalGrid/SubcomposeLayout host each child in its own
+        // independent slot table; those tables register separately with our Inspectable and
+        // would be invisible if we only walked `lastOrNull()`. Walking all of them gives the
+        // report a bounding box for every laid-out child (e.g. each grid cell, each lazy
+        // item) instead of just the parent.
         val tables: List<CompositionData> = record.store.toList()
-        val currentTable = tables.lastOrNull()
 
         val nodes = mutableListOf<NodeJson>()
         val cache = ContextCache()
         val nextIdHolder = intArrayOf(1)
-        currentTable?.mapTree<NodeJson>({ _, ctx, childNodes ->
-            val box = ctx.bounds
-            if (box.right <= box.left || box.bottom <= box.top) return@mapTree null
-            val myId = nextIdHolder[0]
-            nextIdHolder[0] = myId + 1
-            val loc = ctx.location
-            val node = NodeJson(
-                id = myId,
-                name = ctx.name ?: "Group",
-                x = box.left, y = box.top,
-                w = box.right - box.left, h = box.bottom - box.top,
-                sourceFileName = loc?.sourceFile,
-                packageHash = loc?.packageHash ?: 0,
-                line = loc?.lineNumber ?: -1,
-                parentId = null,
-            )
-            nodes.add(node)
-            childNodes.forEach { it.parentId = myId }
-            node
-        }, cache)
+        for (table in tables) {
+            table.mapTree<NodeJson>({ _, ctx, childNodes ->
+                val box = ctx.bounds
+                if (box.right <= box.left || box.bottom <= box.top) return@mapTree null
+                val myId = nextIdHolder[0]
+                nextIdHolder[0] = myId + 1
+                val loc = ctx.location
+                val node = NodeJson(
+                    id = myId,
+                    name = ctx.name ?: "Group",
+                    x = box.left, y = box.top,
+                    w = box.right - box.left, h = box.bottom - box.top,
+                    sourceFileName = loc?.sourceFile,
+                    packageHash = loc?.packageHash ?: 0,
+                    line = loc?.lineNumber ?: -1,
+                    parentId = null,
+                )
+                nodes.add(node)
+                childNodes.forEach { it.parentId = myId }
+                node
+            }, cache)
+        }
+
+        // Pick the LARGEST compose root by area rather than `onRoot()` (which asserts
+        // exactly one) or simply the first. Dialog/Popup/BottomSheet previews mount a
+        // second window with its own root and leave the activity's main root at 0×0
+        // (content lives in the dialog window). The largest-area heuristic targets the
+        // window that actually contains the rendered content.
+        //
+        // `useUnmergedTree = true` is critical: with the default merged tree, lazy
+        // grid/row children get rolled up into their parent node, so we never see the
+        // individual items. The unmerged tree exposes each item as its own node,
+        // which is what lets `appendSemanticBoxes` produce a bounding box per item.
+        val firstRoot: SemanticsNodeInteraction? = try {
+            val all = uiTest.onAllNodes(isRoot(), useUnmergedTree = true)
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
+            if (all.isEmpty()) {
+                null
+            } else {
+                var bestIdx = 0
+                var bestArea = -1f
+                all.forEachIndexed { idx, node ->
+                    val b = node.boundsInRoot
+                    val area = (b.width.coerceAtLeast(0f)) * (b.height.coerceAtLeast(0f))
+                    if (area > bestArea) {
+                        bestArea = area
+                        bestIdx = idx
+                    }
+                }
+                uiTest.onAllNodes(isRoot(), useUnmergedTree = true)[bestIdx]
+            }
+        } catch (t: Throwable) {
+            System.err.println("[codeview] Could not enumerate roots for ${meta.id}: ${t.message}")
+            null
+        }
 
         val renderedTexts = mutableListOf<String>()
-        try {
-            val rootSem = uiTest.onRoot().fetchSemanticsNode()
-            collectRenderedText(rootSem, renderedTexts)
-        } catch (t: Throwable) {
-            System.err.println("[codeview] Could not collect semantics text for ${meta.id}: ${t.message}")
+        if (firstRoot != null) {
+            try {
+                val rootSem = firstRoot.fetchSemanticsNode()
+                collectRenderedText(rootSem, renderedTexts)
+                // Subcompositions (LazyColumn / LazyRow / LazyVerticalGrid / SubcomposeLayout)
+                // don't register with our `Inspectable`'s `LocalInspectionTables`, so mapTree
+                // above never sees their items. Walk the semantics tree as a secondary source
+                // of bounding boxes — it does see every laid-out element. We only emit
+                // synthetic nodes for *visible* boxes that aren't already covered by mapTree
+                // (within ~1px) so we don't double-up on top-level items that mapTree caught.
+                appendSemanticBoxes(rootSem, nodes, nextIdHolder, meta.id)
+            } catch (t: Throwable) {
+                System.err.println("[codeview] Could not collect semantics text for ${meta.id}: ${t.message}")
+            }
         }
 
         // Force at least one frame to commit and the surface to redraw before reading
@@ -163,17 +215,33 @@ object CodeviewRuntime {
         var bitmapHeight = 0
         var captureError: String? = null
         val pngFile = File(outputDir, "${meta.id}.png")
-        try {
-            val bitmap: Bitmap = uiTest.onRoot().captureToImage().asAndroidBitmap()
-            bitmapWidth = bitmap.width
-            bitmapHeight = bitmap.height
-            pngFile.outputStream().use { os -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, os) }
+        // Pre-empt 0×0 previews: `captureToImage` allocates a Bitmap of the root's size
+        // and `Bitmap.createBitmap(0, 0, ...)` throws IllegalArgumentException. Recording
+        // a clean renderError here is friendlier than swallowing that throw and is less
+        // likely to perturb the test framework's idle-state machinery.
+        val rootBounds = try {
+            firstRoot?.fetchSemanticsNode()?.boundsInRoot
         } catch (t: Throwable) {
-            // Record the failure in the sidecar so (a) the report can flag it instead of
-            // showing a stale image and (b) the skip mechanism re-renders this preview
-            // on the next run instead of latching the failure forever.
-            captureError = "${t.javaClass.simpleName}: ${t.message ?: "(no message)"}"
-            System.err.println("[codeview] Skipping PNG capture for ${meta.id}: ${t.message}")
+            null
+        }
+        if (firstRoot == null) {
+            captureError = "IllegalStateException: No compose hierarchies found in the app."
+        } else if (rootBounds != null && (rootBounds.width <= 0f || rootBounds.height <= 0f)) {
+            captureError = "Preview rendered at 0×0 — add a size modifier or use a `widthDp`/`heightDp` " +
+                "argument on `@Preview` so codeview has something to capture."
+        } else {
+            try {
+                val bitmap: Bitmap = firstRoot.captureToImage().asAndroidBitmap()
+                bitmapWidth = bitmap.width
+                bitmapHeight = bitmap.height
+                pngFile.outputStream().use { os -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, os) }
+            } catch (t: Throwable) {
+                // Record the failure in the sidecar so (a) the report can flag it instead of
+                // showing a stale image and (b) the skip mechanism re-renders this preview
+                // on the next run instead of latching the failure forever.
+                captureError = "${t.javaClass.simpleName}: ${t.message ?: "(no message)"}"
+                System.err.println("[codeview] Skipping PNG capture for ${meta.id}: ${t.message}")
+            }
         }
 
         val sidecar = File(outputDir, "${meta.id}.json")
@@ -212,6 +280,12 @@ object CodeviewRuntime {
             ui.executeShellCommand("rm -rf $publishDir").close()
             ui.executeShellCommand("mkdir -p $publishDir").close()
             ui.executeShellCommand("chmod 777 $publishDir").close()
+            // Drop a fresh sentinel into the publish dir so the host-side pull task can
+            // tell *this run's* publish from leftover bytes of a prior run. The earlier
+            // sentinel in externalCacheDir only flags publish-mode for the runtime; it
+            // never makes it to /sdcard, so the pull task can't see it.
+            ui.executeShellCommand("touch $publishDir/__codeview_published__").close()
+            ui.executeShellCommand("chmod 666 $publishDir/__codeview_published__").close()
         } catch (t: Throwable) {
             System.err.println("[codeview] Failed to prepare publish dir: ${t.message}")
         }
@@ -242,6 +316,84 @@ object CodeviewRuntime {
         val line: Int,
         var parentId: Int?,
     )
+
+    /**
+     * Walks the semantics tree and emits a synthetic [NodeJson] for every node that has
+     * non-empty bounds and isn't already represented (within 1px tolerance) in [nodes].
+     * This is how the report gets bounding boxes for items inside subcompositions
+     * (LazyVerticalGrid cells, SubcomposeLayout children, etc.) — those compositions
+     * never register with `Inspectable`'s `LocalInspectionTables`, so mapTree alone
+     * misses them.
+     *
+     * Synthetic nodes have no source-file/line info: semantics doesn't carry it. They
+     * still render as click-targets in the report; clicking just won't deep-link into
+     * the IDE for that node.
+     */
+    private fun appendSemanticBoxes(
+        root: SemanticsNode,
+        nodes: MutableList<NodeJson>,
+        nextIdHolder: IntArray,
+        previewId: String,
+    ) {
+        // Snapshot existing bounds so we can dedupe in O(N*M) without re-allocating.
+        val existing = nodes.map { Quad(it.x, it.y, it.w, it.h) }
+        val stats = intArrayOf(0, 0, 0) // [visited, addedFresh, dedupedAgainstMapTree]
+        walkSemanticBoxes(root, nodes, existing, nextIdHolder, parentSyntheticId = null, stats = stats)
+        System.err.println(
+            "[codeview] Semantic walk for $previewId: visited=${stats[0]} added=${stats[1]} " +
+                "deduped=${stats[2]} mapTreeNodes=${existing.size}"
+        )
+    }
+
+    private fun walkSemanticBoxes(
+        node: SemanticsNode,
+        out: MutableList<NodeJson>,
+        existing: List<Quad>,
+        nextIdHolder: IntArray,
+        parentSyntheticId: Int?,
+        stats: IntArray,
+    ) {
+        stats[0]++
+        val rect = node.boundsInRoot
+        val w = rect.width.toInt()
+        val h = rect.height.toInt()
+        var assignedId: Int? = parentSyntheticId
+        if (w > 0 && h > 0) {
+            val x = rect.left.toInt()
+            val y = rect.top.toInt()
+            // Dedupe only against the original mapTree-derived bounds (1px tolerance).
+            // We don't dedupe against newly-added semantic siblings — distinct grid
+            // items intentionally have distinct bounds, and we want a box per item.
+            val isDuplicate = existing.any { e ->
+                kotlin.math.abs(e.x - x) <= 1 && kotlin.math.abs(e.y - y) <= 1 &&
+                    kotlin.math.abs(e.w - w) <= 1 && kotlin.math.abs(e.h - h) <= 1
+            }
+            if (isDuplicate) {
+                stats[2]++
+            } else {
+                val id = nextIdHolder[0]
+                nextIdHolder[0] = id + 1
+                out.add(
+                    NodeJson(
+                        id = id,
+                        name = "Semantic",
+                        x = x, y = y, w = w, h = h,
+                        sourceFileName = null,
+                        packageHash = 0,
+                        line = -1,
+                        parentId = parentSyntheticId,
+                    )
+                )
+                stats[1]++
+                assignedId = id
+            }
+        }
+        node.children.forEach {
+            walkSemanticBoxes(it, out, existing, nextIdHolder, assignedId, stats)
+        }
+    }
+
+    private data class Quad(val x: Int, val y: Int, val w: Int, val h: Int)
 
     /**
      * Walks the semantics tree and appends every visible text-bearing string to [out].

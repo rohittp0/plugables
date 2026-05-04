@@ -246,20 +246,53 @@
 
   /* Stage */
   .stage-frame {
-    display: inline-block;
+    display: flex; flex-direction: column; align-items: stretch;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 8px;
+    padding: 8px; gap: 8px;
     box-shadow: var(--shadow-sm);
+    /* Bound the frame's height so the viewport actually scrolls when zoomed past
+       fit. Anything taller than this gets pan/scroll. */
+    max-height: calc(100vh - 220px);
+    min-height: 0;
+  }
+  .stage-toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 2px 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .stage-toolbar button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 4px 10px; font: inherit; line-height: 1;
+    cursor: pointer; transition: background 100ms, border-color 100ms;
+  }
+  .stage-toolbar button:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .stage-toolbar .zoom-display {
+    font-variant-numeric: tabular-nums;
+    min-width: 48px; text-align: center;
+  }
+  .stage-toolbar .spacer { flex: 1; }
+  .stage-viewport {
+    flex: 1 1 auto;
+    overflow: auto;
+    background: var(--panel-2);
+    border-radius: 6px;
+    /* center the stage inside the viewport when it's smaller than the viewport;
+       browsers otherwise render the scroll container's content in the top-left. */
+    display: flex; align-items: flex-start; justify-content: center;
+    min-height: 0;
   }
   .stage {
-    position: relative; display: inline-block;
+    position: relative;
     background: #fff;
     border-radius: 6px;
-    overflow: hidden;
+    /* No `overflow: hidden` — overlays that extend slightly past the image (e.g.
+       Dialog content drawn outside the activity root) would otherwise be clipped. */
   }
-  .stage img { display: block; max-width: 100%; user-select: none; -webkit-user-drag: none; }
+  .stage img { display: block; user-select: none; -webkit-user-drag: none; }
   .overlay {
     position: absolute; box-sizing: border-box;
     cursor: pointer; border: 1.5px solid transparent;
@@ -269,6 +302,15 @@
   .overlay:hover {
     border-color: var(--accent);
     background: var(--accent-soft);
+  }
+  /* Nodes from library composables / Compose internals — no IDE click-through, but we
+     still want them to show on hover so the user can inspect the full layout
+     structure. Invisible by default (matching `.overlay`) so the report doesn't look
+     cluttered, with a muted outline on hover instead of the accent color. */
+  .overlay--no-source { cursor: default; }
+  .overlay--no-source:hover {
+    border-color: var(--text-muted);
+    background: rgba(128, 128, 128, 0.08);
   }
 
   .empty-detail {
@@ -602,39 +644,102 @@
 
     const frame = document.createElement("div");
     frame.className = "stage-frame";
+
+    // Toolbar (Fit / 1:1 / − / + / zoom %).
+    const toolbar = document.createElement("div");
+    toolbar.className = "stage-toolbar";
+    const btnFit = document.createElement("button"); btnFit.textContent = "Fit"; btnFit.title = "Fit to viewport (Reset)";
+    const btnActual = document.createElement("button"); btnActual.textContent = "1:1"; btnActual.title = "Actual size (100%)";
+    const btnOut = document.createElement("button"); btnOut.textContent = "−"; btnOut.title = "Zoom out";
+    const btnIn = document.createElement("button"); btnIn.textContent = "+"; btnIn.title = "Zoom in";
+    const zoomDisplay = document.createElement("span"); zoomDisplay.className = "zoom-display";
+    const spacer = document.createElement("span"); spacer.className = "spacer";
+    toolbar.appendChild(btnFit); toolbar.appendChild(btnActual);
+    toolbar.appendChild(btnOut); toolbar.appendChild(btnIn);
+    toolbar.appendChild(zoomDisplay); toolbar.appendChild(spacer);
+    frame.appendChild(toolbar);
+
+    // Scroll/pan viewport that holds the stage. The stage scales; the viewport
+    // gets scrollbars whenever the stage is larger than the viewport.
+    const viewport = document.createElement("div");
+    viewport.className = "stage-viewport";
     const stage = document.createElement("div");
     stage.className = "stage";
     const img = document.createElement("img");
     img.src = spec.imagePath;
     img.alt = spec.displayName;
     stage.appendChild(img);
-    frame.appendChild(stage);
+    viewport.appendChild(stage);
+    frame.appendChild(viewport);
     detailBody.appendChild(frame);
 
-    img.addEventListener("load", function () {
-      // Filter out Compose-internal nodes (no resolved file -> empty openUrl) and sort
-      // largest-first so smaller, more-specific overlays paint on top.
-      const visible = (spec.nodes || [])
-        .filter(function (n) { return n.openUrl && n.openUrl.length > 0; })
-        .slice()
-        .sort(function (a, b) { return (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height); });
+    // Sort largest-first so smaller, more specific overlays paint on top. Nodes with
+    // `openUrl` (user-authored composables with source attribution) become anchor
+    // links into the IDE; nodes without (library composables, Compose internals)
+    // are non-clickable divs that still hover-highlight so the user can inspect the
+    // full layout structure.
+    const visible = (spec.nodes || [])
+      .filter(function (n) { return n.bounds && n.bounds.width > 0 && n.bounds.height > 0; })
+      .slice()
+      .sort(function (a, b) { return (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height); });
 
-      const sx = img.clientWidth / spec.imageWidth;
-      const sy = img.clientHeight / spec.imageHeight;
-
-      visible.forEach(function (n) {
-        const ov = document.createElement("a");
-        ov.className = "overlay";
-        ov.href = n.openUrl;
-        ov.style.left = (n.bounds.x * sx) + "px";
-        ov.style.top = (n.bounds.y * sy) + "px";
-        ov.style.width = (n.bounds.width * sx) + "px";
-        ov.style.height = (n.bounds.height * sy) + "px";
-        ov.addEventListener("mousemove", function (e) { showTooltip(e, n); });
-        ov.addEventListener("mouseleave", hideTooltip);
-        stage.appendChild(ov);
-      });
+    // Build overlays once; we reposition them on every zoom change rather than
+    // recreate them. Each overlay's natural-pixel bounds are stashed on the element
+    // so the rescaler stays simple.
+    const overlays = visible.map(function (n) {
+      const hasSource = n.openUrl && n.openUrl.length > 0;
+      const ov = document.createElement(hasSource ? "a" : "div");
+      ov.className = hasSource ? "overlay" : "overlay overlay--no-source";
+      if (hasSource) ov.href = n.openUrl;
+      ov._n = n;
+      ov.addEventListener("mousemove", function (e) { showTooltip(e, n); });
+      ov.addEventListener("mouseleave", hideTooltip);
+      stage.appendChild(ov);
+      return ov;
     });
+
+    // Apply a zoom level: resize the image, resize the stage, reposition overlays.
+    function applyScale(scale) {
+      const w = spec.imageWidth * scale;
+      const h = spec.imageHeight * scale;
+      img.style.width = w + "px";
+      img.style.height = h + "px";
+      stage.style.width = w + "px";
+      stage.style.height = h + "px";
+      overlays.forEach(function (ov) {
+        const n = ov._n;
+        ov.style.left = (n.bounds.x * scale) + "px";
+        ov.style.top = (n.bounds.y * scale) + "px";
+        ov.style.width = (n.bounds.width * scale) + "px";
+        ov.style.height = (n.bounds.height * scale) + "px";
+      });
+      zoomDisplay.textContent = Math.round(scale * 100) + "%";
+    }
+
+    function fitScale() {
+      // Fit-to-viewport: largest scale that fits both width and height inside the
+      // viewport box without overflowing. Capped at 1.0 so small previews don't
+      // get blown up past their natural resolution.
+      const padding = 16; // breathing room around the image
+      const availW = Math.max(viewport.clientWidth - padding, 50);
+      const availH = Math.max(viewport.clientHeight - padding, 50);
+      const sw = availW / spec.imageWidth;
+      const sh = availH / spec.imageHeight;
+      return Math.min(sw, sh, 1.0);
+    }
+
+    let scale = 1.0;
+    function setScale(s) { scale = Math.max(0.05, Math.min(s, 8.0)); applyScale(scale); }
+
+    btnFit.addEventListener("click", function () { setScale(fitScale()); });
+    btnActual.addEventListener("click", function () { setScale(1.0); });
+    btnIn.addEventListener("click", function () { setScale(scale * 1.25); });
+    btnOut.addEventListener("click", function () { setScale(scale / 1.25); });
+
+    // Initial layout: wait for the image to know its natural dimensions, then fit.
+    function onReady() { setScale(fitScale()); }
+    if (img.complete && img.naturalWidth > 0) onReady();
+    else img.addEventListener("load", onReady);
   }
 
   // ─── Tooltip ───────────────────────────────────────────

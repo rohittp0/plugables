@@ -4,6 +4,7 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
@@ -50,6 +51,17 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
     abstract val onDeviceSidecarSubdir: Property<String>
 
     /**
+     * Display names of `@Preview` functions to skip entirely. Matches against
+     * [PreviewSpec.displayName] (e.g. `"PreviewScreenPreview"`). Filtered out before tests
+     * are generated so an excluded preview never enters the registry, never executes,
+     * and never appears in the report. Use this for previews that fundamentally can't
+     * render in the codeview test environment (e.g. those calling `hiltViewModel()`
+     * against a plain `ComponentActivity` host).
+     */
+    @get:Input
+    abstract val excludePreviews: ListProperty<String>
+
+    /**
      * Sidecars from the previous run, read at execution time to decide which previews can be
      * `@Ignore`d. Marked `@Internal` (not a Gradle input) on purpose: the directory is also the
      * output of `pullCodeviewSidecars`, so declaring it as `@InputDirectory` here would create a
@@ -70,7 +82,21 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
             .flatMap { it.walkTopDown().filter { f -> f.isFile && f.extension == "kt" } }
             .map { PreviewSourceParser.parseFile(it) }
             .toList()
-        val previews = parseResults.flatMap { it.specs }
+        val allPreviews = parseResults.flatMap { it.specs }
+        val excluded = excludePreviews.get().toSet()
+        val (excludedPreviews, previews) = allPreviews.partition { it.displayName in excluded }
+        if (excludedPreviews.isNotEmpty()) {
+            logger.lifecycle(
+                "[codeview] Excluded ${excludedPreviews.size} preview(s) by name: " +
+                    excludedPreviews.joinToString(", ") { it.displayName }
+            )
+            // Drop sidecars/PNGs for excluded previews so they don't linger in the report.
+            val sidecarRoot = sidecarOutputDir.get().asFile
+            for (spec in excludedPreviews) {
+                File(sidecarRoot, "${spec.id}.png").delete()
+                File(sidecarRoot, "${spec.id}.json").delete()
+            }
+        }
         val skippedPrivate = parseResults.flatMap { it.skippedPrivate }
         if (skippedPrivate.isNotEmpty()) {
             logger.warn(
@@ -194,7 +220,12 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
             appendLine("class CodeviewBatchTest {")
             appendLine()
             appendLine("    @Test")
-            appendLine("    fun renderAll() = runAndroidComposeUiTest(activityClass = $activityFqn::class.java) {")
+            appendLine(
+                "    fun renderAll() = runAndroidComposeUiTest(activityClass = $activityFqn::class.java, " +
+                    "testTimeout = kotlin.time.Duration.parse(\"PT30M\"), " +
+                    "effectContext = kotlinx.coroutines.CoroutineExceptionHandler { _, t -> " +
+                    "System.err.println(\"[codeview] composition coroutine threw: \${t.message}\") }) {"
+            )
             appendLine("        CodeviewRuntime.runBatch(")
             appendLine("            uiTest = this,")
             appendLine("            outputDir = File(\"$safeSidecarDir\"),")
@@ -223,7 +254,12 @@ abstract class GeneratePreviewTestsTask : DefaultTask() {
         appendLine("class CodeviewBatchTest {")
         appendLine()
         appendLine("    @Test")
-        appendLine("    fun renderAll() = runAndroidComposeUiTest(activityClass = $activityFqn::class.java) {")
+        appendLine(
+            "    fun renderAll() = runAndroidComposeUiTest(activityClass = $activityFqn::class.java, " +
+                "testTimeout = kotlin.time.Duration.parse(\"PT30M\"), " +
+                "effectContext = kotlinx.coroutines.CoroutineExceptionHandler { _, t -> " +
+                "System.err.println(\"[codeview] composition coroutine threw: \${t.message}\") }) {"
+        )
         appendLine("        val ctx = InstrumentationRegistry.getInstrumentation().targetContext")
         appendLine("        val outputDir = File(ctx.externalCacheDir, \"$onDeviceSubdir\").apply { mkdirs() }")
         appendLine("        File(outputDir, \"__codeview_published__\").writeText(\"1\")")

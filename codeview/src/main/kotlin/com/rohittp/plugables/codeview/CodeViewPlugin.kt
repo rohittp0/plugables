@@ -31,6 +31,7 @@ class CodeViewPlugin : Plugin<Project> {
                 testActivityClass.set(ext.testActivityClass)
                 testMode.set(ext.testMode)
                 onDeviceSidecarSubdir.set(onDeviceSubdir)
+                excludePreviews.set(ext.excludePreviews)
                 // Read the previous run's pulled sidecars so we can mark unchanged previews
                 // `@Ignore`. Declared `@Internal` on the task to avoid a producer-consumer cycle
                 // with `pullCodeviewSidecars`.

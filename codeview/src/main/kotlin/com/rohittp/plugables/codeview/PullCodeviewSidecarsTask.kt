@@ -48,6 +48,44 @@ abstract class PullCodeviewSidecarsTask @Inject constructor(
         val adb = resolveAdb()
         val deviceArgs = pickDevice(adb)
 
+        // The runtime helper writes `__codeview_published__` exactly once at the top of
+        // `runBatch`, so its presence on-device is proof that the instrumented test process
+        // actually reached our batch. If it's missing, the test crashed before any preview
+        // rendered — pulling whatever is in `/sdcard/codeview-sidecars` would silently
+        // republish a previous run's data into the new report. Fail loudly instead.
+        val sentinelCheck = java.io.ByteArrayOutputStream()
+        runCatching {
+            exec.exec {
+                commandLine(
+                    listOf(adb) + deviceArgs + listOf(
+                        "shell", "ls", "$devicePath/__codeview_published__"
+                    )
+                )
+                standardOutput = sentinelCheck
+                errorOutput = sentinelCheck
+                isIgnoreExitValue = true
+            }
+        }
+        val sentinelFound = sentinelCheck.toString().contains("__codeview_published__") &&
+            !sentinelCheck.toString().contains("No such file")
+        if (!sentinelFound) {
+            // Wipe whatever stale bytes are sitting on the device so the next run starts
+            // clean, then halt this build with a clear diagnosis.
+            runCatching {
+                exec.exec {
+                    commandLine(listOf(adb) + deviceArgs + listOf("shell", "rm", "-rf", devicePath))
+                }
+            }
+            throw org.gradle.api.GradleException(
+                "[codeview] No sentinel '__codeview_published__' on device — the instrumented " +
+                    "test process never reached CodeviewRuntime.runBatch. Inspect the logcat " +
+                    "from `connected*AndroidTest` (e.g. `Failed resolution of: " +
+                    "Landroidx/test/internal/platform/app/ActivityInvoker`) and fix the test " +
+                    "setup before re-running. Refusing to publish a report from stale " +
+                    "sidecars."
+            )
+        }
+
         logger.lifecycle("[codeview] Pulling sidecars from device path '$devicePath/.' to '${out.absolutePath}/'")
         exec.exec {
             commandLine(listOf(adb) + deviceArgs + listOf("pull", "$devicePath/.", out.absolutePath))
@@ -55,6 +93,9 @@ abstract class PullCodeviewSidecarsTask @Inject constructor(
         exec.exec {
             commandLine(listOf(adb) + deviceArgs + listOf("shell", "rm", "-rf", devicePath))
         }
+        // Drop the sentinel locally — it has no value to the report task and would just
+        // sit in the sidecars dir forever otherwise.
+        File(out, "__codeview_published__").delete()
     }
 
     /**

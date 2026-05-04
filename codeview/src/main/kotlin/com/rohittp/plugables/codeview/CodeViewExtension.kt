@@ -3,6 +3,7 @@ package com.rohittp.plugables.codeview
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import javax.inject.Inject
 
@@ -39,6 +40,21 @@ abstract class CodeViewExtension @Inject constructor(layout: ProjectLayout) {
      */
     abstract val openOnComplete: Property<Boolean>
 
+    /**
+     * Preview function names to exclude from rendering. Match by simple display name
+     * (e.g. `"PreviewScreenPreview"`) — the same name shown in the report and in the
+     * preview's `displayName`. Excluded previews are filtered out before tests are
+     * generated; they never enter the registry, never run, and never appear in the
+     * report.
+     *
+     * Use this to skip previews that fundamentally can't render in the codeview test
+     * environment — e.g. composables that call `hiltViewModel()` against a plain
+     * `ComponentActivity` test host. One throwing composable would otherwise poison
+     * the Compose Recomposer for the rest of the batch (cascading "No compose
+     * hierarchies found in the app" errors).
+     */
+    abstract val excludePreviews: ListProperty<String>
+
     init {
         sourceDirs.from(
             layout.projectDirectory.dir("src/main/kotlin"),
@@ -48,5 +64,6 @@ abstract class CodeViewExtension @Inject constructor(layout: ProjectLayout) {
         ideScheme.convention("idea")
         testMode.convention("unit")
         openOnComplete.convention(true)
+        excludePreviews.convention(emptyList())
     }
 }
