@@ -6,6 +6,7 @@ plugins {
     id("com.rohittp.plugables.codeview") version "1.3.1"
     id("com.rohittp.plugables.typed-events") version "1.0.0"
     id("com.rohittp.plugables.viewmodel-stub") version "1.0.0"
+    id("com.rohittp.plugables.auto-assert") version "1.0.0"
 }
 
 android {
@@ -62,6 +63,7 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test:rules:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

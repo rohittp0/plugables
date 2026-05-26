@@ -22,3 +22,4 @@ rootProject.name = "plugables"
 include(":viewmodel-stub")
 include(":typed-events")
 include(":codeview")
+include(":auto-assert")
