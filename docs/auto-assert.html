@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>auto-assert Gradle Plugin — Plugables</title>
+  <meta name="description" content="Inject a static assertion call at the entry of every method on annotated Kotlin/Java classes. AGP bytecode instrumentation for thread checks, invariants, and runtime guards." />
+  <link rel="canonical" href="https://rohittp.com/plugables/auto-assert" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Plugables" />
+  <meta property="og:title" content="auto-assert Gradle Plugin — Plugables" />
+  <meta property="og:description" content="Inject a static assertion call at the entry of every method on annotated Kotlin/Java classes. AGP bytecode instrumentation for thread checks, invariants, and runtime guards." />
+  <meta property="og:url" content="https://rohittp.com/plugables/auto-assert" />
+  <meta property="og:image" content="https://rohittp.com/plugables/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="auto-assert Gradle Plugin — Plugables" />
+  <meta name="twitter:description" content="Inject a static assertion call at the entry of every method on annotated Kotlin/Java classes. AGP bytecode instrumentation for thread checks, invariants, and runtime guards." />
+  <meta name="twitter:image" content="https://rohittp.com/plugables/og-image.png" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "headline": "auto-assert Gradle Plugin",
+        "description": "Inject a static assertion call at the entry of every method on annotated Kotlin/Java classes via AGP bytecode instrumentation.",
+        "url": "https://rohittp.com/plugables/auto-assert",
+        "datePublished": "2026-05-26",
+        "author": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" },
+        "publisher": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Plugables", "item": "https://rohittp.com/plugables/" },
+          { "@type": "ListItem", "position": 2, "name": "auto-assert", "item": "https://rohittp.com/plugables/auto-assert" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+<!-- ─── Navigation ─────────────────────────────────────────── -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="index" class="nav-brand">Plugables</a>
+    <div class="nav-links">
+      <a href="viewmodel-stub">viewmodel-stub</a>
+      <a href="typed-events">typed-events</a>
+      <a href="codeview">codeview</a>
+      <a href="auto-assert">auto-assert</a>
+      <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- ─── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <nav class="toc">
+      <p class="toc-title">On this page</p>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#annotations">Annotations</a></li>
+        <li><a href="#assert-for-all-calls" class="toc-h3">@AssertForAllCalls</a></li>
+        <li><a href="#no-assert" class="toc-h3">@NoAssert</a></li>
+        <li><a href="#asserter">Asserter Requirements</a></li>
+        <li><a href="#skip-rules">Built-in Skip Rules</a></li>
+        <li><a href="#example">End-to-end Example</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#caveats">Caveats</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ─── Content ──────────────────────────────────────────── -->
+  <main class="content">
+
+    <div class="breadcrumb">
+      <a href="index">Plugables</a>
+      <span class="breadcrumb-sep">/</span>
+      auto-assert
+    </div>
+
+    <header class="page-header">
+      <h1>auto-assert</h1>
+      <div class="page-badges">
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-platform">Android</span>
+        <span class="badge badge-kotlin">Kotlin</span>
+      </div>
+      <p class="page-lead">
+        Annotate a class with <code>@AssertForAllCalls</code> and the plugin
+        injects a static method call at the entry of every method —
+        constructors, accessors, lambdas, and <code>equals</code>/<code>hashCode</code>/<code>toString</code>
+        excluded. Use it for thread checks, invariant enforcement, or any
+        runtime guard you want to run before <em>every</em> call into a class.
+      </p>
+    </header>
+
+    <!-- ─── Overview ─────────────────────────────────────── -->
+    <section id="overview" class="doc-section">
+      <h2>Overview</h2>
+      <p>
+        Some classes have a contract that must hold for every method call —
+        "must be called on the main thread", "must hold the render lock",
+        "must not be invoked while the engine is paused". The classic fix is
+        to copy-paste a guard call at the top of every method. It works until
+        someone adds a new method and forgets.
+      </p>
+      <p>
+        <strong>auto-assert</strong> moves the guard from convention to
+        instrumentation. You annotate the class with
+        <code>@AssertForAllCalls</code> and point it at a static method on an
+        asserter object. At build time the plugin transforms the compiled
+        bytecode via the AGP Instrumentation API, inserting
+        <code>INVOKESTATIC</code> at the entry of every qualifying method.
+      </p>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <strong>Bytecode-level enforcement</strong>
+          <p>The guard runs even if someone forgets to write it — it isn't in the source, it's in the class file.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Per-class asserter</strong>
+          <p>Each Target class picks its own assertion method via the <code>klass</code> + <code>method</code> annotation parameters.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Smart skip rules</strong>
+          <p>Constructors, synthetic/bridge methods, lambdas, accessors and Kotlin property getters/setters are skipped automatically.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Opt-out per method</strong>
+          <p><code>@NoAssert</code> on a single method removes the guard from just that one method.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Zero runtime dependency</strong>
+          <p>The annotation classes are generated into your module — no extra library to ship.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Installation ─────────────────────────────────── -->
+    <section id="installation" class="doc-section">
+      <h2>Installation</h2>
+      <p>Add Maven Central to your plugin repositories in <code>settings.gradle.kts</code>:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">settings.gradle.kts</span>
+        <pre><code><span class="fn">pluginManagement</span> <span class="op">{</span>
+    <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">mavenCentral</span><span class="op">()</span>
+        <span class="fn">gradlePluginPortal</span><span class="op">()</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>Then apply the plugin in your Android module:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">plugins</span> <span class="op">{</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.auto-assert"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        No DSL configuration is required. The plugin generates the two
+        annotation classes into <code>build/generated/source/autoAssert/main</code>
+        and wires the AGP bytecode transform onto every variant.
+      </p>
+
+      <div class="callout">
+        <p class="callout-title">Requires AGP 7.2+</p>
+        <p>
+          The plugin uses the Android Variant API
+          (<code>AndroidComponentsExtension</code>) and the AGP
+          Instrumentation API. Tested against AGP 9.2.0.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── Annotations ──────────────────────────────────── -->
+    <section id="annotations" class="doc-section">
+      <h2>Annotations</h2>
+      <p>
+        Two annotations are generated into the
+        <code>com.rohittp.plugables.autoassert</code> package on every build.
+        Import them like any other Kotlin annotation.
+      </p>
+
+      <h3 id="assert-for-all-calls">@AssertForAllCalls</h3>
+      <p>Class-level. Marks a class as a <strong>Target class</strong>.</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin — AssertForAllCalls.kt</span>
+        <pre><code><span class="k">package</span> <span class="ty">com.rohittp.plugables.autoassert</span>
+
+<span class="k">import</span> <span class="ty">kotlin.reflect.KClass</span>
+
+<span class="op">@</span><span class="ty">Target</span><span class="op">(</span><span class="ty">AnnotationTarget</span><span class="op">.</span><span class="fn">CLASS</span><span class="op">)</span>
+<span class="op">@</span><span class="ty">Retention</span><span class="op">(</span><span class="ty">AnnotationRetention</span><span class="op">.</span><span class="fn">BINARY</span><span class="op">)</span>
+<span class="k">annotation class</span> <span class="ty">AssertForAllCalls</span><span class="op">(</span><span class="k">val</span> <span class="fn">klass</span><span class="op">:</span> <span class="ty">KClass</span><span class="op">&lt;*&gt;,</span> <span class="k">val</span> <span class="fn">method</span><span class="op">:</span> <span class="ty">String</span><span class="op">)</span></code></pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>klass</code></td>
+              <td><code>KClass&lt;*&gt;</code></td>
+              <td>The Asserter class. Refactor-safe — IDE renames update every usage.</td>
+            </tr>
+            <tr>
+              <td><code>method</code></td>
+              <td><code>String</code></td>
+              <td>Name of the static, no-arg, <code>void</code> method on the Asserter to invoke at every Host method entry.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="no-assert">@NoAssert</h3>
+      <p>Method-level. Opt a single method out of instrumentation.</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin — NoAssert.kt</span>
+        <pre><code><span class="k">package</span> <span class="ty">com.rohittp.plugables.autoassert</span>
+
+<span class="op">@</span><span class="ty">Target</span><span class="op">(</span><span class="ty">AnnotationTarget</span><span class="op">.</span><span class="fn">FUNCTION</span><span class="op">)</span>
+<span class="op">@</span><span class="ty">Retention</span><span class="op">(</span><span class="ty">AnnotationRetention</span><span class="op">.</span><span class="fn">BINARY</span><span class="op">)</span>
+<span class="k">annotation class</span> <span class="ty">NoAssert</span></code></pre>
+      </div>
+
+      <p>
+        There is no class-level <code>@NoAssert</code> — to opt a whole class
+        out, simply don't annotate it with <code>@AssertForAllCalls</code>.
+      </p>
+    </section>
+
+    <!-- ─── Asserter ─────────────────────────────────────── -->
+    <section id="asserter" class="doc-section">
+      <h2>Asserter Requirements</h2>
+      <p>
+        The class supplied via <code>klass = ...</code> is called the
+        <strong>Asserter</strong>. It must expose a method that matches the
+        JVM descriptor <code>()V</code> — no arguments, returns void — and be
+        callable via <code>INVOKESTATIC</code>.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Form</th><th>Works?</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Kotlin <code>object</code> with <code>@JvmStatic</code> method</td>
+              <td>Yes</td>
+              <td>Idiomatic. <code>@JvmStatic</code> makes the method directly callable from JVM static dispatch.</td>
+            </tr>
+            <tr>
+              <td>Java <code>public static void</code> method</td>
+              <td>Yes</td>
+              <td>Plain JVM static.</td>
+            </tr>
+            <tr>
+              <td>Kotlin <code>object</code> instance method (no <code>@JvmStatic</code>)</td>
+              <td>No</td>
+              <td>Compiles to an instance method on the singleton, not a JVM static. Add <code>@JvmStatic</code>.</td>
+            </tr>
+            <tr>
+              <td>Top-level Kotlin function</td>
+              <td>No</td>
+              <td>Compiled into a synthetic <code>FileKt</code> class — you can't reference its <code>::class</code> directly. Wrap in an <code>object</code>.</td>
+            </tr>
+            <tr>
+              <td>Method with parameters</td>
+              <td>No</td>
+              <td>v1 supports <code>()V</code> only.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <span class="code-lang">kotlin — recommended shape</span>
+        <pre><code><span class="k">object</span> <span class="ty">ThreadAsserter</span> <span class="op">{</span>
+    <span class="op">@</span><span class="ty">JvmStatic</span>
+    <span class="k">fun</span> <span class="fn">assertMainThread</span><span class="op">() {</span>
+        <span class="fn">check</span><span class="op">(</span><span class="ty">Looper</span><span class="op">.</span><span class="fn">myLooper</span><span class="op">() ==</span> <span class="ty">Looper</span><span class="op">.</span><span class="fn">getMainLooper</span><span class="op">()) {</span>
+            <span class="st">"Must be called on the main thread"</span>
+        <span class="op">}</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ─── Skip Rules ───────────────────────────────────── -->
+    <section id="skip-rules" class="doc-section">
+      <h2>Built-in Skip Rules</h2>
+      <p>
+        Methods that match any of these rules are never instrumented, even on
+        a Target class. The list mirrors the rules pioneered by
+        <code>FilamentScope</code>'s thread-safety instrumentation — they
+        reflect what's almost always noise.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Skipped</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Constructors (<code>&lt;init&gt;</code>, <code>&lt;clinit&gt;</code>)</td>
+              <td>JVM requires <code>super()</code>/this initialisers to run first — injecting before them is invalid bytecode.</td>
+            </tr>
+            <tr>
+              <td>Synthetic and bridge methods (<code>ACC_SYNTHETIC | ACC_BRIDGE</code>)</td>
+              <td>Compiler-generated. Bridge methods just delegate to the real method, which is already instrumented.</td>
+            </tr>
+            <tr>
+              <td>Lambdas (<code>lambda$…</code>, <code>$anonymous</code>)</td>
+              <td>The enclosing method is already instrumented; lambda bodies run on whatever thread the dispatcher chose.</td>
+            </tr>
+            <tr>
+              <td><code>equals(Object)</code>, <code>hashCode()</code>, <code>toString()</code></td>
+              <td>Called by debugger/log/hash code paths on unpredictable threads. Asserting here pollutes diagnostics.</td>
+            </tr>
+            <tr>
+              <td>Field-derived accessors (<code>getX()</code>, <code>setX(T)</code>)</td>
+              <td>Backed by a real field — pure read/write, no real method body to guard.</td>
+            </tr>
+            <tr>
+              <td>Kotlin property accessors</td>
+              <td>Detected via <code>@kotlin.Metadata</code>. Includes property overrides without backing fields.</td>
+            </tr>
+            <tr>
+              <td>Methods annotated <code>@NoAssert</code></td>
+              <td>Explicit opt-out.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <p class="callout-title">If you need to assert on a getter</p>
+        <p>
+          Convert the property to an explicit function. The plugin can't tell
+          a "real" getter from a property accessor — both look identical in
+          bytecode. If you need the guard on a read, write it as
+          <code>fun computeFoo(): T</code>.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── Example ──────────────────────────────────────── -->
+    <section id="example" class="doc-section">
+      <h2>End-to-end Example</h2>
+      <p>
+        A renderer that must always run on the GL thread. Define the
+        asserter, annotate the renderer, and the plugin injects the check
+        into every host method.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">kotlin</span>
+        <pre><code><span class="k">import</span> <span class="ty">com.rohittp.plugables.autoassert.AssertForAllCalls</span>
+<span class="k">import</span> <span class="ty">com.rohittp.plugables.autoassert.NoAssert</span>
+
+<span class="k">object</span> <span class="ty">GlAsserter</span> <span class="op">{</span>
+    <span class="k">lateinit var</span> <span class="fn">glThread</span><span class="op">:</span> <span class="ty">Thread</span>
+
+    <span class="op">@</span><span class="ty">JvmStatic</span>
+    <span class="k">fun</span> <span class="fn">assertGlThread</span><span class="op">() {</span>
+        <span class="fn">check</span><span class="op">(</span><span class="ty">Thread</span><span class="op">.</span><span class="fn">currentThread</span><span class="op">() ===</span> <span class="fn">glThread</span><span class="op">) {</span>
+            <span class="st">"Must be called on the GL thread"</span>
+        <span class="op">}</span>
+    <span class="op">}</span>
+<span class="op">}</span>
+
+<span class="op">@</span><span class="ty">AssertForAllCalls</span><span class="op">(</span><span class="fn">klass</span> <span class="op">=</span> <span class="ty">GlAsserter</span><span class="op">::</span><span class="k">class</span><span class="op">,</span> <span class="fn">method</span> <span class="op">=</span> <span class="st">"assertGlThread"</span><span class="op">)</span>
+<span class="k">class</span> <span class="ty">SceneRenderer</span> <span class="op">{</span>
+
+    <span class="k">fun</span> <span class="fn">render</span><span class="op">() { </span><span class="cm">/* … */</span> <span class="op">}</span>          <span class="cm">// instrumented</span>
+    <span class="k">fun</span> <span class="fn">update</span><span class="op">() { </span><span class="cm">/* … */</span> <span class="op">}</span>          <span class="cm">// instrumented</span>
+
+    <span class="op">@</span><span class="ty">NoAssert</span>
+    <span class="k">fun</span> <span class="fn">dumpForLogging</span><span class="op">(): </span><span class="ty">String</span> <span class="op">{</span>      <span class="cm">// skipped — safe to call from any thread</span>
+        <span class="k">return</span> <span class="st">"scene state…"</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>After the build, the compiled bytecode of <code>SceneRenderer</code> looks like:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">javap -c (post-transform)</span>
+        <pre><code><span class="k">public final void</span> <span class="fn">render</span><span class="op">();</span>
+  <span class="ty">Code</span><span class="op">:</span>
+     <span class="nm">0</span><span class="op">:</span> <span class="fn">invokestatic</span>  <span class="cm">// Method GlAsserter.assertGlThread:()V</span>
+     <span class="nm">3</span><span class="op">:</span> <span class="cm">/* … original method body … */</span>
+
+<span class="k">public final void</span> <span class="fn">update</span><span class="op">();</span>
+  <span class="ty">Code</span><span class="op">:</span>
+     <span class="nm">0</span><span class="op">:</span> <span class="fn">invokestatic</span>  <span class="cm">// Method GlAsserter.assertGlThread:()V</span>
+     <span class="nm">3</span><span class="op">:</span> <span class="cm">/* … original method body … */</span>
+
+<span class="k">public final</span> <span class="ty">String</span> <span class="fn">dumpForLogging</span><span class="op">();</span>
+  <span class="ty">Code</span><span class="op">:</span>
+     <span class="nm">0</span><span class="op">:</span> <span class="cm">/* … original method body — no injection … */</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ─── Configuration ────────────────────────────────── -->
+    <section id="configuration" class="doc-section">
+      <h2>Configuration</h2>
+      <p>
+        The <code>autoAssert</code> DSL block exposes a single optional
+        property. Most projects never need to override it.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Type</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>outputDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td><code>build/generated/source/autoAssert/main</code></td>
+              <td>Where the two annotation source files are written. Automatically wired into every variant's <code>kotlin</code> source set.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── Caveats ──────────────────────────────────────── -->
+    <section id="caveats" class="doc-section">
+      <h2>Caveats</h2>
+      <p>
+        Three intentional limitations to be aware of. All are surfaced
+        upfront so the plugin's behaviour is predictable.
+      </p>
+
+      <h3>No inheritance</h3>
+      <p>
+        <code>@AssertForAllCalls</code> only triggers instrumentation on the
+        class that declares it. Subclasses are <em>not</em> automatically
+        Target classes — overrides and new methods on the subclass run
+        unguarded unless that subclass also carries the annotation.
+      </p>
+
+      <h3>No asserter arguments</h3>
+      <p>
+        The Asserter method must be <code>()V</code>. The plugin does not
+        pass the calling class/method name. If you need that information,
+        capture it from the JVM stack frame inside your asserter
+        (<code>Thread.currentThread().stackTrace</code>) — pay the cost on
+        failure, not on every call.
+      </p>
+
+      <h3>Multi-module duplicate classes</h3>
+      <p>
+        Because the annotation FQCN is fixed
+        (<code>com.rohittp.plugables.autoassert.AssertForAllCalls</code>),
+        applying the plugin to <strong>multiple Android modules</strong> in the
+        same build — where one depends on another — will produce duplicate
+        <code>.class</code> files at dex time. Apply the plugin in a single
+        module, or in a shared base module everything else depends on.
+      </p>
+
+      <div class="callout tip">
+        <p class="callout-title">When you want zero-cost in release</p>
+        <p>
+          Keep the assertion logic inside the asserter method behind a
+          <code>BuildConfig.DEBUG</code> guard. The <code>INVOKESTATIC</code>
+          stays in release builds, but the method body becomes a no-op the
+          JIT will inline away.
+        </p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ─── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index" class="footer-brand">Plugables</a>
+    <span class="footer-meta">com.rohittp.plugables.auto-assert · v1.0.0</span>
+    <div class="footer-links">
+      <a href="https://github.com/rohittp0/plugables/tree/main/auto-assert" target="_blank" rel="noopener noreferrer">Source</a>
+      <a href="codeview">← codeview</a>
+      <a href="index">All plugins</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
