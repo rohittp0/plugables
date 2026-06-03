@@ -7,6 +7,7 @@ plugins {
     id("com.rohittp.plugables.typed-events") version "1.0.0"
     id("com.rohittp.plugables.viewmodel-stub") version "1.0.0"
     id("com.rohittp.plugables.auto-assert") version "1.0.0"
+    id("com.rohittp.plugables.branchmark") version "1.0.0"
 }
 
 android {
@@ -80,4 +81,9 @@ typedEvents {
 
 viewModelStub {
     sourceDir.set(file("src/main/kotlin"))
+}
+
+branchmark {
+    // Zero-config works; this just narrows the demo to a couple of densities for speed.
+    densities.set(listOf("xhdpi", "xxxhdpi"))
 }

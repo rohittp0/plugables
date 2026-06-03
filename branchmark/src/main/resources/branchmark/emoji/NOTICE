@@ -1,0 +1,10 @@
+The emoji SVG files in this directory are from Twemoji.
+
+Twemoji (https://github.com/jdecked/twemoji)
+Copyright 2019 Twitter, Inc and other contributors.
+
+Graphics licensed under CC-BY 4.0:
+https://creativecommons.org/licenses/by/4.0/
+
+The files are unmodified, named by their Unicode codepoint(s) in lowercase
+hexadecimal (variation selector U+FE0F stripped), as used by the Twemoji asset set.

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>branchmark Gradle Plugin — Plugables</title>
+  <meta name="description" content="Stamp your Android debug launcher icon with the current git branch — a suffix ribbon and prefix emoji — automatically, by reading your existing adaptive icon." />
+  <link rel="canonical" href="https://rohittp.com/plugables/branchmark" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Plugables" />
+  <meta property="og:title" content="branchmark Gradle Plugin — Plugables" />
+  <meta property="og:description" content="Stamp your Android debug launcher icon with the current git branch — a suffix ribbon and prefix emoji — automatically, by reading your existing adaptive icon." />
+  <meta property="og:url" content="https://rohittp.com/plugables/branchmark" />
+  <meta property="og:image" content="https://rohittp.com/plugables/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="branchmark Gradle Plugin — Plugables" />
+  <meta name="twitter:description" content="Stamp your Android debug launcher icon with the current git branch — a suffix ribbon and prefix emoji — automatically, by reading your existing adaptive icon." />
+  <meta name="twitter:image" content="https://rohittp.com/plugables/og-image.png" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "headline": "branchmark Gradle Plugin",
+        "description": "Stamp your Android debug launcher icon with the current git branch — a suffix ribbon and prefix emoji — by reading your existing adaptive icon.",
+        "url": "https://rohittp.com/plugables/branchmark",
+        "datePublished": "2026-06-03",
+        "author": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" },
+        "publisher": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Plugables", "item": "https://rohittp.com/plugables/" },
+          { "@type": "ListItem", "position": 2, "name": "branchmark", "item": "https://rohittp.com/plugables/branchmark" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+<!-- ─── Navigation ─────────────────────────────────────────── -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="index" class="nav-brand">Plugables</a>
+    <div class="nav-links">
+      <a href="viewmodel-stub">viewmodel-stub</a>
+      <a href="typed-events">typed-events</a>
+      <a href="codeview">codeview</a>
+      <a href="auto-assert">auto-assert</a>
+      <a href="branchmark">branchmark</a>
+      <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- ─── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <nav class="toc">
+      <p class="toc-title">On this page</p>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#how-it-works">How it works</a></li>
+        <li><a href="#branch-detection">Branch detection</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#emoji">Prefix emoji map</a></li>
+        <li><a href="#ci">CI setup</a></li>
+        <li><a href="#caveats">Caveats</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ─── Content ──────────────────────────────────────────── -->
+  <main class="content">
+
+    <div class="breadcrumb">
+      <a href="index">Plugables</a>
+      <span class="breadcrumb-sep">/</span>
+      branchmark
+    </div>
+
+    <header class="page-header">
+      <h1>branchmark</h1>
+      <div class="page-badges">
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-platform">Android</span>
+        <span class="badge badge-kotlin">Kotlin</span>
+      </div>
+      <p class="page-lead">
+        Stamp your <strong>debug</strong> launcher icon with the current
+        <strong>git branch</strong> so you always know which branch a build on
+        your home screen came from. A diagonal ribbon shows the branch name; a
+        color emoji shows the branch type. Zero config — branchmark reads the
+        adaptive icon you already have and draws only the banner.
+      </p>
+    </header>
+
+    <!-- ─── Overview ─────────────────────────────────────── -->
+    <section id="overview" class="doc-section">
+      <h2>Overview</h2>
+      <p>
+        Install three debug builds from three branches and they're
+        indistinguishable on the launcher — same icon, same name. branchmark
+        fixes that. For a branch like <code>fix/login-crash</code> it draws a
+        red <strong>ribbon</strong> across the top-right corner reading
+        <code>LOGIN-CRASH</code>, and a <strong>🔧</strong> emoji for the
+        <code>fix</code> type in the lower-left.
+      </p>
+      <p>
+        It never asks you to supply a second icon. branchmark reads your app's
+        existing <code>mipmap-anydpi-v26/ic_launcher.xml</code>, rasterizes its
+        vector foreground, paints the banner on top, and generates a debug-only
+        adaptive icon that overrides the original — release builds are untouched.
+      </p>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <strong>Reads your real icon</strong>
+          <p>No base image or template to provide — branchmark resolves and rasterizes the foreground you already ship.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Color emoji everywhere</strong>
+          <p>Glyphs come from bundled Twemoji SVGs, so the wrench looks the same on macOS, Linux, and CI — no font tofu.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Debug only</strong>
+          <p>The generated icon is wired into the debug variant via the AGP Variant API. Release icons never change.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Always distinct</strong>
+          <p>On <code>main</code>, a detached HEAD, or in CI without a branch, it falls back to a plain "DEBUG" ribbon.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Config-cache safe</strong>
+          <p>The branch is resolved through a <code>ValueSource</code>; the task is cacheable and up-to-date aware.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Installation ─────────────────────────────────── -->
+    <section id="installation" class="doc-section">
+      <h2>Installation</h2>
+      <p>Add Maven Central to your plugin repositories in <code>settings.gradle.kts</code>:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">settings.gradle.kts</span>
+        <pre><code><span class="fn">pluginManagement</span> <span class="op">{</span>
+    <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">mavenCentral</span><span class="op">()</span>
+        <span class="fn">gradlePluginPortal</span><span class="op">()</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>Then apply the plugin in your Android application module, after the Android plugin:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">plugins</span> <span class="op">{</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.android.application"</span><span class="op">)</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.branchmark"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        That's the whole setup. branchmark expects a standard adaptive icon
+        (<code>mipmap-anydpi-v26/ic_launcher.xml</code> with a
+        <code>&lt;foreground&gt;</code>), which Android Studio's New Project
+        wizard generates by default.
+      </p>
+
+      <div class="callout">
+        <p class="callout-title">Requires AGP 7.2+</p>
+        <p>
+          The plugin wires generated resources through the Android Variant API
+          (<code>AndroidComponentsExtension</code>). Tested against AGP 9.2.0.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── How it works ─────────────────────────────────── -->
+    <section id="how-it-works" class="doc-section">
+      <h2>How it works</h2>
+      <p>
+        On every debug build, the <code>generateBranchmarkIcon</code> task runs
+        the following pipeline, once per density:
+      </p>
+
+      <div class="pipeline">
+        <div class="pipeline-step"><strong>Read</strong><span>parse ic_launcher.xml</span></div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step"><strong>Rasterize</strong><span>vector → bitmap (VdPreview)</span></div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step"><strong>Stamp</strong><span>ribbon + emoji</span></div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step"><strong>Emit</strong><span>debug res + adaptive XML</span></div>
+      </div>
+
+      <ol>
+        <li>
+          Parse <code>src/main/res/mipmap-anydpi-v26/ic_launcher.xml</code> and
+          resolve its <code>&lt;foreground&gt;</code>,
+          <code>&lt;background&gt;</code>, and <code>&lt;monochrome&gt;</code>.
+        </li>
+        <li>
+          Resolve the foreground to a bitmap — a <strong>vector</strong>
+          drawable is rasterized with Android's own <code>VdPreview</code> at
+          the 108dp canvas size for the density; a <strong>raster</strong>
+          foreground is read directly.
+        </li>
+        <li>
+          Draw the ribbon (Java2D) and the prefix emoji (a bundled
+          <a href="https://github.com/jdecked/twemoji" target="_blank" rel="noopener noreferrer">Twemoji</a>
+          color SVG, rasterized with Apache Batik) onto a copy of the
+          foreground, keeping the glyph inside the adaptive-icon safe zone.
+        </li>
+        <li>
+          Write <code>mipmap-&lt;dpi&gt;/ic_launcher_foreground_debug.png</code>
+          and a debug <code>mipmap-anydpi-v26/ic_launcher.xml</code> that points
+          <code>&lt;foreground&gt;</code> at the stamped image while preserving
+          your original background and monochrome.
+        </li>
+      </ol>
+
+      <p>
+        The generated <code>res</code> directory is registered as a debug
+        variant resource source, so AGP's resource merger overrides the icon for
+        debug builds only.
+      </p>
+    </section>
+
+    <!-- ─── Branch detection ─────────────────────────────── -->
+    <section id="branch-detection" class="doc-section">
+      <h2>Branch detection</h2>
+      <p>
+        Branches are read as <code>.../&lt;type&gt;/&lt;name&gt;</code> —
+        <strong>only the final two slash-separated segments matter</strong>. The
+        second-to-last segment is the <strong>type</strong> (chooses the emoji);
+        the last segment is the <strong>name</strong> (the ribbon text). Any
+        leading segments are ignored, so personal and team prefixes work
+        without configuration.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Branch</th><th>Type → emoji</th><th>Ribbon</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>fix/login-crash</code></td><td><code>fix</code> → 🔧</td><td><code>LOGIN-CRASH</code></td></tr>
+            <tr><td><code>john/fix/login-crash</code></td><td><code>fix</code> → 🔧</td><td><code>LOGIN-CRASH</code></td></tr>
+            <tr><td><code>team/jane/feat/onboarding</code></td><td><code>feat</code> → ✨</td><td><code>ONBOARDING</code></td></tr>
+            <tr><td><code>main</code></td><td>— (no emoji)</td><td><code>DEBUG</code> (fallback)</td></tr>
+            <tr><td>detached <code>HEAD</code> / no git</td><td>— (no emoji)</td><td><code>DEBUG</code> (fallback)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>The branch name itself is resolved with this precedence:</p>
+      <ol>
+        <li><code>branchOverride</code> (DSL)</li>
+        <li><code>-PgitBranch=…</code> (Gradle property)</li>
+        <li><code>GITHUB_HEAD_REF</code> (GitHub Actions PR builds)</li>
+        <li><code>GIT_BRANCH</code> (common CI convention)</li>
+        <li><code>git rev-parse --abbrev-ref HEAD</code></li>
+      </ol>
+    </section>
+
+    <!-- ─── Configuration ────────────────────────────────── -->
+    <section id="configuration" class="doc-section">
+      <h2>Configuration</h2>
+      <p>
+        Every option has a sensible default — zero config works. The
+        <code>branchmark</code> DSL block lets you override what you need:
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">branchmark</span> <span class="op">{</span>
+    <span class="fn">ribbonColor</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"#D32F2F"</span><span class="op">)</span>
+    <span class="fn">fallbackRibbonText</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"DEBUG"</span><span class="op">)</span>
+    <span class="cm">// additive emoji overrides — use put, not set</span>
+    <span class="fn">emojiByPrefix</span><span class="op">.</span><span class="fn">put</span><span class="op">(</span><span class="st">"spike"</span><span class="op">,</span> <span class="st">"🧪"</span><span class="op">)</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>buildType</code></td><td><code>Property&lt;String&gt;</code></td><td><code>"debug"</code></td><td>Build type whose icon is stamped.</td></tr>
+            <tr><td><code>densities</code></td><td><code>ListProperty&lt;String&gt;</code></td><td><code>hdpi…xxxhdpi</code></td><td>Density buckets to generate.</td></tr>
+            <tr><td><code>launcherIconName</code></td><td><code>Property&lt;String&gt;</code></td><td><code>"ic_launcher"</code></td><td>Existing adaptive icon to read.</td></tr>
+            <tr><td><code>foregroundResourceName</code></td><td><code>Property&lt;String&gt;</code></td><td><code>"ic_launcher_foreground_debug"</code></td><td>Name of the generated stamped foreground.</td></tr>
+            <tr><td><code>ribbonColor</code></td><td><code>Property&lt;String&gt;</code></td><td><code>"#D32F2F"</code></td><td>Ribbon fill, <code>#RRGGBB</code> or <code>#AARRGGBB</code>.</td></tr>
+            <tr><td><code>ribbonTextColor</code></td><td><code>Property&lt;String&gt;</code></td><td><code>"#FFFFFF"</code></td><td>Ribbon text color.</td></tr>
+            <tr><td><code>defaultEmoji</code></td><td><code>Property&lt;String&gt;</code></td><td><code>"🌿"</code></td><td>Emoji for unknown types.</td></tr>
+            <tr><td><code>fallbackRibbonText</code></td><td><code>Property&lt;String&gt;</code></td><td><code>"DEBUG"</code></td><td>Ribbon text for undetectable branches.</td></tr>
+            <tr><td><code>branchOverride</code></td><td><code>Property&lt;String&gt;</code></td><td><em>unset</em></td><td>Force a branch (highest precedence).</td></tr>
+            <tr><td><code>emojiByPrefix</code></td><td><code>MapProperty&lt;String,String&gt;</code></td><td>built-in map</td><td>Type → emoji overrides. Use <code>.put</code>/<code>.putAll</code> to add.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── Emoji ────────────────────────────────────────── -->
+    <section id="emoji" class="doc-section">
+      <h2>Prefix emoji map</h2>
+      <p>
+        These branch types ship with a bundled color glyph out of the box. Any
+        other type falls back to <code>defaultEmoji</code> (<code>🌿</code>).
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Type</th><th>Emoji</th><th>Type</th><th>Emoji</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>feat</code></td><td>✨</td><td><code>docs</code></td><td>📝</td></tr>
+            <tr><td><code>fix</code></td><td>🔧</td><td><code>test</code></td><td>🧪</td></tr>
+            <tr><td><code>bug</code></td><td>🐛</td><td><code>perf</code></td><td>⚡</td></tr>
+            <tr><td><code>hotfix</code></td><td>🚑</td><td><code>ci</code></td><td>🔁</td></tr>
+            <tr><td><code>chore</code></td><td>🧹</td><td><code>claude</code></td><td>🤖</td></tr>
+            <tr><td><code>refactor</code></td><td>♻️</td><td><em>unknown</em></td><td>🌿</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout tip">
+        <p class="callout-title">Custom emoji</p>
+        <p>
+          <code>emojiByPrefix.put("spike", "🧪")</code> adds a mapping. Emoji
+          outside the bundled set render via a best-effort system font, which
+          may appear monochrome on some build machines.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── CI ───────────────────────────────────────────── -->
+    <section id="ci" class="doc-section">
+      <h2>CI setup</h2>
+      <p>
+        CI checkouts are often detached or shallow, so <code>git</code> can't
+        report a branch. Pass it explicitly and the ribbon stays accurate:
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">GitHub Actions</span>
+        <pre><code><span class="yk">- run</span><span class="op">:</span> <span class="yv">./gradlew assembleDebug -PgitBranch=${{ github.head_ref || github.ref_name }}</span></code></pre>
+      </div>
+
+      <p>
+        Without it, CI debug builds simply fall back to the static "DEBUG"
+        ribbon — the build never fails.
+      </p>
+    </section>
+
+    <!-- ─── Caveats ──────────────────────────────────────── -->
+    <section id="caveats" class="doc-section">
+      <h2>Caveats</h2>
+      <p>Two intentional limitations, surfaced upfront.</p>
+
+      <h3>Adaptive foreground only</h3>
+      <p>
+        branchmark regenerates the adaptive-icon foreground and its
+        <code>anydpi-v26</code> XML. On <code>minSdk &lt; 26</code> devices, the
+        legacy square <code>mipmap-&lt;dpi&gt;/ic_launcher.png</code> is shown
+        unstamped — the banner appears only where adaptive icons are supported.
+      </p>
+
+      <h3>Emoji coverage</h3>
+      <p>
+        The built-in branch types and the default emoji ship as bundled Twemoji
+        SVGs. A custom emoji outside that set renders through a system font as a
+        best-effort fallback, which may be monochrome or a missing-glyph box on
+        a machine without an emoji font.
+      </p>
+
+      <div class="callout">
+        <p class="callout-title">Consumer owns the rest of the icon</p>
+        <p>
+          branchmark never changes the adaptive background, the release icon, or
+          does any runtime (in-app) icon switching. It only paints the debug
+          banner.
+        </p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ─── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index" class="footer-brand">Plugables</a>
+    <span class="footer-meta">com.rohittp.plugables.branchmark · v1.0.0</span>
+    <div class="footer-links">
+      <a href="https://github.com/rohittp0/plugables/tree/main/branchmark" target="_blank" rel="noopener noreferrer">Source</a>
+      <a href="auto-assert">← auto-assert</a>
+      <a href="index">All plugins</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
