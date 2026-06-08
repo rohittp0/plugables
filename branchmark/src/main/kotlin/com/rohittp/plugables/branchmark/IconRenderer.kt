@@ -25,8 +25,13 @@ object IconRenderer {
     private const val SAFE_INSET = 0.18
 
     // Ribbon geometry, as fractions of the canvas size.
-    private const val RIBBON_CENTER = 0.55   // centerline distance (u+v) from the top-right corner
-    private const val RIBBON_THICKNESS = 0.18
+    private const val RIBBON_CENTER = 0.50   // centerline distance (u+v) from the top-right corner
+    private const val RIBBON_THICKNESS = 0.16
+
+    // The band itself bleeds off the edges, but its TEXT must stay within this inset from each edge
+    // so it isn't clipped by the launcher's mask near the corner. Slightly tighter than SAFE_INSET so
+    // short tags still get a readable size while never running off the visible corner.
+    private const val RIBBON_TEXT_INSET = 0.14
 
     init {
         System.setProperty("java.awt.headless", "true")
@@ -86,10 +91,19 @@ object IconRenderer {
         g.color = ribbon
         g.fill(band)
 
-        // Text centered on the band centerline, running parallel to it (down-right => +45°).
-        val cx = size - cm / 2.0
-        val cy = cm / 2.0
-        val usableWidth = cm * Math.sqrt(2.0) * 0.78  // centerline length minus padding
+        // Clip the centerline (u+v = cm) to the text-safe square [inset, 1-inset] on both axes, so the
+        // text never extends into the corner region a launcher mask crops. u is distance from the right
+        // edge, v from the top edge; v = cm - u, so the visible u-range is the intersection of both
+        // axes' insets. Center the text on the midpoint of THAT visible segment.
+        val cmFrac = RIBBON_CENTER
+        val inset = RIBBON_TEXT_INSET
+        val uMin = Math.max(inset, cmFrac - (1.0 - inset))
+        val uMax = Math.min(1.0 - inset, cmFrac - inset)
+        val midU = (uMin + uMax) / 2.0
+        val cx = (1.0 - midU) * size           // x = n - u
+        val cy = (cmFrac - midU) * size         // y = v = cm - u
+        val visibleLen = Math.max(0.0, uMax - uMin) * Math.sqrt(2.0) * size
+        val usableWidth = visibleLen * 0.90     // small padding inside the visible segment
         val maxHeight = RIBBON_THICKNESS * size * 0.62
 
         val (font, text) = fitText(g, rawText, usableWidth, maxHeight)
