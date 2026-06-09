@@ -21,17 +21,16 @@ import java.io.ByteArrayInputStream
  */
 object IconRenderer {
 
-    // Adaptive-icon safe zone: launchers crop the outer ~18% on every side. Keep glyphs inside.
+    // Adaptive-icon safe zone: launchers crop everything outside a centered circle of this radius
+    // (fraction of canvas). Anything a user must always see — emoji AND ribbon text — stays inside it.
     private const val SAFE_INSET = 0.18
+    private const val SAFE_RADIUS = 0.5 - SAFE_INSET   // radius of the guaranteed-visible circle
 
-    // Ribbon geometry, as fractions of the canvas size.
-    private const val RIBBON_CENTER = 0.50   // centerline distance (u+v) from the top-right corner
-    private const val RIBBON_THICKNESS = 0.16
-
-    // The band itself bleeds off the edges, but its TEXT must stay within this inset from each edge
-    // so it isn't clipped by the launcher's mask near the corner. Slightly tighter than SAFE_INSET so
-    // short tags still get a readable size while never running off the visible corner.
-    private const val RIBBON_TEXT_INSET = 0.14
+    // Ribbon geometry, as fractions of the canvas size. The band bleeds off the top-right corner and
+    // is clipped by the mask there — that's fine — but its centerline is pulled in far enough that it
+    // crosses the safe circle, so the text (clipped to that circle below) is always visible.
+    private const val RIBBON_CENTER = 0.62   // centerline distance (u+v) from the top-right corner
+    private const val RIBBON_THICKNESS = 0.20
 
     init {
         System.setProperty("java.awt.headless", "true")
@@ -91,19 +90,17 @@ object IconRenderer {
         g.color = ribbon
         g.fill(band)
 
-        // Clip the centerline (u+v = cm) to the text-safe square [inset, 1-inset] on both axes, so the
-        // text never extends into the corner region a launcher mask crops. u is distance from the right
-        // edge, v from the top edge; v = cm - u, so the visible u-range is the intersection of both
-        // axes' insets. Center the text on the midpoint of THAT visible segment.
-        val cmFrac = RIBBON_CENTER
-        val inset = RIBBON_TEXT_INSET
-        val uMin = Math.max(inset, cmFrac - (1.0 - inset))
-        val uMax = Math.min(1.0 - inset, cmFrac - inset)
-        val midU = (uMin + uMax) / 2.0
-        val cx = (1.0 - midU) * size           // x = n - u
-        val cy = (cmFrac - midU) * size         // y = v = cm - u
-        val visibleLen = Math.max(0.0, uMax - uMin) * Math.sqrt(2.0) * size
-        val usableWidth = visibleLen * 0.90     // small padding inside the visible segment
+        // The text runs along the band centerline (line `x - y = size - cm`). Launcher masks crop the
+        // corner, so the only reliably visible stretch of that line is its chord through the safe
+        // circle (centered, radius SAFE_RADIUS). Center the text on the foot of the perpendicular from
+        // the canvas center to the line — which, by symmetry, is the centerline midpoint — and limit
+        // its width to that chord so it can never spill out of the visible icon on any mask shape.
+        val cx = size - cm / 2.0
+        val cy = cm / 2.0
+        val r = SAFE_RADIUS * size
+        val distToCenter = (size - cm) / Math.sqrt(2.0)   // distance from canvas center to the centerline
+        val chordHalf = if (distToCenter >= r) 0.0 else Math.sqrt(r * r - distToCenter * distToCenter)
+        val usableWidth = chordHalf * 2.0 * 0.90          // small padding inside the visible chord
         val maxHeight = RIBBON_THICKNESS * size * 0.62
 
         val (font, text) = fitText(g, rawText, usableWidth, maxHeight)
