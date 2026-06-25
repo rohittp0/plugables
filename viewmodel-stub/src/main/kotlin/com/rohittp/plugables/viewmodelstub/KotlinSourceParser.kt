@@ -170,7 +170,18 @@ object KotlinSourceParser {
             }
         }
         if (parenDepth != 0) return false
-        val afterParens = sig.substringAfterLast(')').trim()
+
+        // Inspect what follows the *parameter list's* closing paren — the match of the
+        // first top-level '(' — not the line's last ')'. A body expression may contain
+        // its own parens (a lambda call, a default value, a parenthesised return type),
+        // and substringAfterLast(')') would jump past those and misread the signature as
+        // unfinished, silently swallowing the methods that follow.
+        val paramsStart = sig.indexOf('(')
+        if (paramsStart == -1) return false
+        val paramsEnd = findMatchingParen(sig, paramsStart)
+        if (paramsEnd == -1) return false
+
+        val afterParens = sig.substring(paramsEnd + 1).trim()
         return afterParens.contains('{') || afterParens.contains('=') ||
                 afterParens.isEmpty() || afterParens.matches(Regex("""^:\s*\S+.*$"""))
     }

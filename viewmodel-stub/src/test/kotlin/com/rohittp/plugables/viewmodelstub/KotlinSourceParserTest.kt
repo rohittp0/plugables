@@ -104,6 +104,24 @@ class KotlinSourceParserTest {
     }
 
     @Test
+    fun `extracts single-line expression-body methods whose lambda closes on the same line`() {
+        val file = tempKt("""
+            package com.example
+            @ViewModelStub
+            class FooImpl {
+                override fun onSelectModule(id: String) = _uiState.update { it.copy(selectedModuleId = id) }
+                override fun onDeselectModule() = _uiState.update { it.copy(selectedModuleId = null) }
+                override fun onSheetDismiss() = _uiState.update { it.copy(bottomSheet = BottomSheetState.None) }
+            }
+        """.trimIndent())
+        val info = assertNotNull(KotlinSourceParser.parseFile(file))
+        assertEquals(
+            listOf("onSelectModule", "onDeselectModule", "onSheetDismiss"),
+            info.methods.map { it.name }
+        )
+    }
+
+    @Test
     fun `extracts imports from source file`() {
         val file = tempKt("""
             package com.example
