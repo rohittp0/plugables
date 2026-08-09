@@ -75,7 +75,6 @@ protoExtended {
     metadata {
         protoDir.set(layout.projectDirectory.dir("src/commonMain/proto"))
         basePackage.set("com.lascade.ta.shared.generated")
-        sourceSet.set("commonMain")   // optional; see defaults below
     }
 }
 
@@ -105,10 +104,6 @@ Both tasks share this input shape:
 | `outputDir` | `@OutputDirectory` | Defaults to `build/generated/source/protoExtended/metadata` and `…/androidResources` respectively |
 
 `generateProtoAndroidResources` adds `rPackage` (`@Input`).
-
-Both blocks expose an optional `sourceSet` property. It is only consulted for
-Kotlin Multiplatform and Kotlin JVM consumers; the AGP variant API path ignores
-it, since variant sources are not addressed by source-set name.
 
 `protoDir` is `@Internal` rather than `@InputDirectory` deliberately: a required
 `@InputDirectory` fails at input-snapshot time when unconfigured, which would
@@ -326,8 +321,7 @@ generated file and busts the build cache.
 
 ## Source-set wiring
 
-All wiring is lazy via `plugins.withId`. `sourceSet` is left unset by default so
-each branch supplies its own default.
+All wiring is lazy via `plugins.withId`.
 
 | Consumer plugin | `generateProtoMetadata` → | `generateProtoAndroidResources` → |
 |---|---|---|
@@ -459,6 +453,13 @@ Metadata options are untouched — the three `*_meta` extensions and every
   generated for it, which then fail to compile against a class that does not
   exist. Both generators read `.proto` sources directly and never inspect Wire's
   output.
+- **No configurable `sourceSet`** — dropped from the approved design. `plugins.withId`
+  fires during `apply()`, before the consumer's `protoExtended { }` block runs, so the
+  property is always unset when the wiring needs it. Source sets are hardcoded:
+  `commonMain` (KMP metadata), `main` (Kotlin JVM metadata), `androidMain` (KMP
+  resources). Wire a different one by hand with
+  `kotlin.srcDir(tasks.named("generateProtoMetadata"))`; the unwired diagnostic
+  tolerates it.
 
 ## Task ordering
 
