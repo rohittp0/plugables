@@ -49,3 +49,6 @@ data class ProtoEnumInfo(
     val metaProperties: List<MetaProperty>,
     val resourceFlags: ResourceFlags,
 )
+
+/** A proto schema the plugin refuses to generate from. Message is shown to the user verbatim. */
+class ProtoSchemaException(message: String) : RuntimeException(message)

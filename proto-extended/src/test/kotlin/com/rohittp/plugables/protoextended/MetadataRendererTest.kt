@@ -3,6 +3,7 @@ package com.rohittp.plugables.protoextended
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 
 class MetadataRendererTest {
@@ -136,5 +137,24 @@ class MetadataRendererTest {
         assertContains(out, "package com.example.generated")
         assertFalse(out.contains("import "))
         assertFalse(out.contains("val "))
+    }
+
+    @Test
+    fun `throws rather than defaulting when a value cannot be parsed`() {
+        val enum = ProtoEnumInfo(
+            qualifiedName = "ta.Sample",
+            kotlinRef = "Sample",
+            kotlinImport = "com.example.Sample",
+            constantNames = listOf("ONE"),
+            metaProperties = listOf(
+                MetaProperty("i", KotlinScalar.INT, listOf(ConstantValue("ONE", "not-a-number"))),
+            ),
+            resourceFlags = ResourceFlags(),
+        )
+        val error = assertFailsWith<ProtoSchemaException> {
+            MetadataRenderer.render("com.example.generated", listOf(enum))
+        }
+        assertContains(error.message!!, "not-a-number")
+        assertContains(error.message!!, "Int")
     }
 }

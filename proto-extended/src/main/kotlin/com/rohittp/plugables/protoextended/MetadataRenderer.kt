@@ -45,15 +45,22 @@ object MetadataRenderer {
      * Converts a raw proto option value into a Kotlin literal. Int tolerates a
      * decimal-looking source value (`"1080.0"`), which protoc permits for integer
      * option fields.
+     *
+     * Never defaults a value that fails to parse — a defaulted `0` would be
+     * indistinguishable from a genuinely-set `0`. Throws instead.
      */
-    private fun literal(type: KotlinScalar, raw: String): String = when (type) {
-        KotlinScalar.STRING -> "\"${raw.escapeKotlin()}\""
-        KotlinScalar.DOUBLE -> (raw.toDoubleOrNull() ?: 0.0).toString()
-        KotlinScalar.FLOAT -> "${raw.toFloatOrNull() ?: 0.0f}f"
-        KotlinScalar.INT -> "${raw.toDoubleOrNull()?.toInt() ?: 0}"
-        KotlinScalar.LONG -> "${raw.toLongOrNull() ?: 0L}L"
-        KotlinScalar.BOOLEAN -> raw.toBooleanStrictOrNull()?.toString() ?: "false"
-    }
+    private fun literal(type: KotlinScalar, raw: String): String =
+        when (type) {
+            KotlinScalar.STRING -> "\"${raw.escapeKotlin()}\""
+            KotlinScalar.DOUBLE -> raw.toDoubleOrNull()?.toString()
+            KotlinScalar.FLOAT -> raw.toFloatOrNull()?.let { "${it}f" }
+            KotlinScalar.INT -> raw.toDoubleOrNull()?.toInt()?.toString()
+            KotlinScalar.LONG -> raw.toLongOrNull()?.let { "${it}L" }
+            KotlinScalar.BOOLEAN -> raw.toBooleanStrictOrNull()?.toString()
+        } ?: throw ProtoSchemaException(
+            "Cannot render `$raw` as ${type.kotlinName}. This is a bug in " +
+                "proto-extended's reader, not in your proto.",
+        )
 
     private fun String.escapeKotlin(): String = this
         .replace("\\", "\\\\")
