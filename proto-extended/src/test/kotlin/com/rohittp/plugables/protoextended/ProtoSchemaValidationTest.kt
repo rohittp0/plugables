@@ -44,6 +44,7 @@ class ProtoSchemaValidationTest {
         assertContains(error.message!!, "AspectRatio")
         assertContains(error.message!!, "ratio_meta")
         assertContains(error.message!!, "RATIO_16_9")
+        assertContains(error.message!!, "Every constant must set the option, or none.")
     }
 
     @Test

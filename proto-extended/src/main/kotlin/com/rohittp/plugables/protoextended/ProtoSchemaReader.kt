@@ -136,10 +136,11 @@ class ProtoSchemaReader(private val protoDir: File) {
                 // Rule 4 — supported scalars only.
                 val scalar = scalarFor(field)
                     ?: throw ProtoSchemaException(
-                        "Field `${field.name}` of `${spec.metaType}` has unsupported type " +
-                            "`${field.type}`${if (field.isRepeated) " (repeated)" else ""}. " +
-                            "proto-extended supports string, double, float, int32, uint32, " +
-                            "int64, uint64 and bool.",
+                        "Field `${field.name}` of `${spec.metaType}` (used on enum " +
+                            "`${enumType.type}`) has unsupported type `${field.type}`" +
+                            "${if (field.isRepeated) " (repeated)" else ""}. proto-extended " +
+                            "supports string, double, float, int32, uint32, int64, uint64 " +
+                            "and bool.",
                     )
 
                 val member = ProtoMember.get(spec.metaType, field.name)
@@ -164,10 +165,11 @@ class ProtoSchemaReader(private val protoDir: File) {
                 // Rule 3 — reserved names and cross-message collisions.
                 if (field.name in RESERVED_NAMES) {
                     throw ProtoSchemaException(
-                        "Field `${field.name}` of `${spec.metaType}` is reserved: an extension " +
-                            "property cannot shadow the enum member of the same name, so the " +
-                            "generated property would silently never be called. " +
-                            "Reserved names: ${RESERVED_NAMES.joinToString()}.",
+                        "Field `${field.name}` of `${spec.metaType}` (used on enum " +
+                            "`${enumType.type}`) is reserved: an extension property cannot " +
+                            "shadow the enum member of the same name, so the generated property " +
+                            "would silently never be called. Reserved names: " +
+                            "${RESERVED_NAMES.joinToString()}.",
                     )
                 }
                 seenNames[field.name]?.let { previous ->

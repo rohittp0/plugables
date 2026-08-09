@@ -172,6 +172,10 @@ class ProtoSchemaReaderTest {
             message UnitMeta {
               string symbol = 1;
               double multiplier = 2;
+              float ratio = 3;
+              int32 exponent = 4;
+              int64 atomicWeight = 5;
+              bool metric = 6;
             }
 
             extend google.protobuf.EnumValueOptions {
@@ -179,8 +183,12 @@ class ProtoSchemaReaderTest {
             }
 
             enum Unit {
-              KM = 0 [(unit_meta) = { symbol: "km", multiplier: 1.0 }];
-              MILE = 1 [(unit_meta) = { symbol: "mi", multiplier: 0.621371 }];
+              KM = 0 [(unit_meta) = {
+                symbol: "km", multiplier: 1.0, ratio: 1.0, exponent: 3, atomicWeight: 1, metric: true
+              }];
+              MILE = 1 [(unit_meta) = {
+                symbol: "mi", multiplier: 0.621371, ratio: 0.62, exponent: -1, atomicWeight: 2, metric: false
+              }];
             }
             """,
         )
@@ -188,11 +196,20 @@ class ProtoSchemaReaderTest {
         val enum = ProtoSchemaReader(tmp).read().single()
         val symbol = enum.metaProperties.single { it.name == "symbol" }
         val multiplier = enum.metaProperties.single { it.name == "multiplier" }
+        val ratio = enum.metaProperties.single { it.name == "ratio" }
+        val exponent = enum.metaProperties.single { it.name == "exponent" }
+        val atomicWeight = enum.metaProperties.single { it.name == "atomicWeight" }
+        val metric = enum.metaProperties.single { it.name == "metric" }
 
         assertEquals(KotlinScalar.STRING, symbol.type)
         assertEquals(KotlinScalar.DOUBLE, multiplier.type)
+        assertEquals(KotlinScalar.FLOAT, ratio.type)
+        assertEquals(KotlinScalar.INT, exponent.type)
+        assertEquals(KotlinScalar.LONG, atomicWeight.type)
+        assertEquals(KotlinScalar.BOOLEAN, metric.type)
         assertEquals(listOf("KM", "MILE"), symbol.values.map { it.constantName })
         assertEquals(listOf("km", "mi"), symbol.values.map { it.rawValue })
+        assertEquals(listOf("1.0", "0.621371"), multiplier.values.map { it.rawValue })
     }
 
     @Test
