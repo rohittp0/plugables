@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>proto-extended Gradle Plugin — Plugables</title>
+  <meta name="description" content="Generate typed Kotlin extension properties and Android string/drawable accessors from protobuf enum options, validated at build time." />
+  <link rel="canonical" href="https://rohittp.com/plugables/proto-extended" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Plugables" />
+  <meta property="og:title" content="proto-extended Gradle Plugin — Plugables" />
+  <meta property="og:description" content="Generate typed Kotlin extension properties and Android string/drawable accessors from protobuf enum options, validated at build time." />
+  <meta property="og:url" content="https://rohittp.com/plugables/proto-extended" />
+  <meta property="og:image" content="https://rohittp.com/plugables/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="proto-extended Gradle Plugin — Plugables" />
+  <meta name="twitter:description" content="Generate typed Kotlin extension properties and Android string/drawable accessors from protobuf enum options, validated at build time." />
+  <meta name="twitter:image" content="https://rohittp.com/plugables/og-image.png" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "headline": "proto-extended Gradle Plugin",
+        "description": "Generate Kotlin extension properties and Android string/drawable accessors from protobuf enum options.",
+        "url": "https://rohittp.com/plugables/proto-extended",
+        "datePublished": "2026-08-09",
+        "author": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" },
+        "publisher": { "@type": "Person", "name": "Rohit T P", "url": "https://rohittp.com" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Plugables", "item": "https://rohittp.com/plugables/" },
+          { "@type": "ListItem", "position": 2, "name": "proto-extended", "item": "https://rohittp.com/plugables/proto-extended" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+<!-- ─── Navigation ─────────────────────────────────────────── -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="index" class="nav-brand">Plugables</a>
+    <div class="nav-links">
+      <a href="viewmodel-stub">viewmodel-stub</a>
+      <a href="typed-events">typed-events</a>
+      <a href="codeview">codeview</a>
+      <a href="auto-assert">auto-assert</a>
+      <a href="branchmark">branchmark</a>
+      <a href="proto-extended">proto-extended</a>
+      <a href="https://github.com/rohittp0/plugables" class="nav-github" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- ─── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <nav class="toc">
+      <p class="toc-title">On this page</p>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#gen-options">Declaring resource flags</a></li>
+        <li><a href="#metadata">Metadata generation</a></li>
+        <li><a href="#android-resources">Android resource generation</a></li>
+        <li><a href="#configuration">Two-module setup</a></li>
+        <li><a href="#validation">Validation rules</a></li>
+        <li><a href="#non-goals">Non-goals</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ─── Content ──────────────────────────────────────────── -->
+  <main class="content">
+
+    <div class="breadcrumb">
+      <a href="index">Plugables</a>
+      <span class="breadcrumb-sep">/</span>
+      proto-extended
+    </div>
+
+    <header class="page-header">
+      <h1>proto-extended</h1>
+      <div class="page-badges">
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-platform">Multiplatform</span>
+        <span class="badge badge-kotlin">Kotlin</span>
+      </div>
+      <p class="page-lead">
+        Reads a directory of <code>.proto</code> files and turns custom enum
+        options into real Kotlin: typed metadata extension properties for
+        <code>commonMain</code>, and <code>@StringRes</code> /
+        <code>@DrawableRes</code> accessors for the Android module that owns
+        your resources. One <code>protoExtended { }</code> block, two
+        independent generators — configure only the one your module needs.
+      </p>
+    </header>
+
+    <!-- ─── Overview ─────────────────────────────────────── -->
+    <section id="overview" class="doc-section">
+      <h2>Overview</h2>
+      <p>
+        Wire's Kotlin generator turns proto enums into plain Kotlin enums, but
+        the custom options riding alongside them — per-constant metadata,
+        per-enum resource flags — stay unread. Someone still has to look up
+        <code>width</code>, <code>R.string.ratio_1_1</code>, or
+        <code>R.drawable.ratio_1_1</code> by hand, or trust a hand-rolled task
+        that silently defaults a missing value instead of failing.
+      </p>
+      <p>
+        <strong>proto-extended</strong> reads those options directly from your
+        <code>.proto</code> sources and generates the properties for you, with
+        five validation rules that fail the build — naming the enum, constant
+        and field — instead of shipping a silently wrong value.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Block</th><th>Task</th><th>Output file</th><th>Runs in</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>metadata { }</code></td>
+              <td><code>generateProtoMetadata</code></td>
+              <td><code>ProtoEnumMetadata.kt</code></td>
+              <td>any module — pure Kotlin, wired into <code>commonMain</code> / <code>main</code></td>
+            </tr>
+            <tr>
+              <td><code>androidResources { }</code></td>
+              <td><code>generateProtoAndroidResources</code></td>
+              <td><code>ProtoEnumResources.kt</code></td>
+              <td>the module that owns <code>R</code> — wired into <code>androidMain</code> / AGP variants</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <strong>Two independent generators</strong>
+          <p>Each block is enabled by setting its own <code>protoDir</code> — configure one, both, or neither.</p>
+        </div>
+        <div class="feature-item">
+          <strong>NO-SOURCE by default</strong>
+          <p>An unconfigured block's task reports <code>NO-SOURCE</code> and is skipped. No "must configure both" trap.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Fails loudly on drift</strong>
+          <p>Five validation rules turn silent wrong-value bugs into build failures that name the enum, constant and field.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Deterministic output</strong>
+          <p>Enums sorted by qualified name, imports sorted — reordering unrelated protos never busts the build cache.</p>
+        </div>
+        <div class="feature-item">
+          <strong>Configuration cache compatible</strong>
+          <p>Neither task references <code>Project</code> at execution time.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Installation ─────────────────────────────────── -->
+    <section id="installation" class="doc-section">
+      <h2>Installation</h2>
+      <p>Add Maven Central to your plugin repositories in <code>settings.gradle.kts</code>:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">settings.gradle.kts</span>
+        <pre><code><span class="fn">pluginManagement</span> <span class="op">{</span>
+    <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">mavenCentral</span><span class="op">()</span>
+        <span class="fn">gradlePluginPortal</span><span class="op">()</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>Then apply the plugin in whichever module needs it:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">plugins</span> <span class="op">{</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.proto-extended"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        Applying the plugin registers both <code>generateProtoMetadata</code>
+        and <code>generateProtoAndroidResources</code> unconditionally, in
+        every module. Neither runs until its block sets a
+        <code>protoDir</code> — the unconfigured one reports
+        <code>NO-SOURCE</code> and costs nothing.
+      </p>
+
+      <div class="callout">
+        <p class="callout-title">Automatic wiring needs a recognised plugin</p>
+        <p>
+          Generated sources are wired into a source set automatically only
+          when Kotlin Multiplatform, Kotlin JVM, or an Android plugin is also
+          applied to the module — see
+          <a href="#configuration">Two-module setup</a>. Without one of those,
+          the block still generates a valid <code>.kt</code> file, but a build
+          warning tells you it isn't on any source set.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── Declaring resource flags ─────────────────────── -->
+    <section id="gen-options" class="doc-section">
+      <h2>Declaring resource flags</h2>
+      <p>
+        <code>androidResources { }</code> decides which enums get generated
+        accessors by reading a custom
+        <code>extend google.protobuf.EnumOptions</code> field — not a leading
+        comment. A comment is invisible to protoc and validated by nothing;
+        a typo in a custom option is a schema-linker error naming the file and
+        line instead of a silent no-op.
+      </p>
+      <p>
+        Declare the extension once per proto source tree, in a file every
+        enum-bearing proto imports:
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">gen_options.proto</span>
+        <pre><code><span class="k">syntax</span> <span class="op">=</span> <span class="st">"proto3"</span><span class="op">;</span>
+<span class="k">package</span> <span class="ty">gen</span><span class="op">;</span>
+<span class="k">import</span> <span class="st">"google/protobuf/descriptor.proto"</span><span class="op">;</span>
+
+<span class="k">message</span> <span class="ty">ResourceGen</span> <span class="op">{</span>
+  <span class="k">bool</span> <span class="fn">display_name</span> <span class="op">=</span> <span class="nm">1</span><span class="op">;</span>
+  <span class="k">bool</span> <span class="fn">icon</span> <span class="op">=</span> <span class="nm">2</span><span class="op">;</span>
+<span class="op">}</span>
+
+<span class="k">extend</span> <span class="ty">google.protobuf.EnumOptions</span> <span class="op">{</span>
+  <span class="k">optional</span> <span class="ty">ResourceGen</span> <span class="fn">resources</span> <span class="op">=</span> <span class="nm">50100</span><span class="op">;</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        Flags are named for the <strong>generated Kotlin property</strong>
+        (<code>display_name</code>, <code>icon</code>) rather than the Android
+        resource folder (<code>string</code>, <code>drawable</code>) — the
+        property name is the part that stays meaningful now that the plugin is
+        multiplatform-aware. Field number <code>50100</code> only needs to be
+        unique among extensions of <code>EnumOptions</code>; pick any unused
+        number.
+      </p>
+
+      <div class="callout tip">
+        <p class="callout-title">Extends EnumOptions, not EnumValueOptions</p>
+        <p>
+          <code>(gen.resources)</code> applies to the <strong>enum itself</strong>
+          (<code>google.protobuf.EnumOptions</code>), unlike a metadata option
+          such as <code>ratio_meta</code>, which applies to each
+          <strong>constant</strong> (<code>google.protobuf.EnumValueOptions</code>).
+          One option per enum, not per constant.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── Metadata generation ──────────────────────────── -->
+    <section id="metadata" class="doc-section">
+      <h2>Metadata generation</h2>
+      <p>
+        <code>metadata { }</code> walks every proto file, collects top-level
+        and nested enums, and emits one flat extension property per field of
+        any <code>extend google.protobuf.EnumValueOptions</code> message that
+        appears on the enum's constants. The output is pure Kotlin — no
+        Android import, compiles for every KMP target.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">aspect_ratio.proto</span>
+        <pre><code><span class="k">import</span> <span class="st">"gen_options.proto"</span><span class="op">;</span>
+<span class="k">option</span> <span class="fn">java_package</span> <span class="op">=</span> <span class="st">"com.example.model"</span><span class="op">;</span>
+
+<span class="k">message</span> <span class="ty">RatioMeta</span> <span class="op">{</span>
+  <span class="k">int32</span> <span class="fn">width</span> <span class="op">=</span> <span class="nm">1</span><span class="op">;</span>
+<span class="op">}</span>
+
+<span class="k">extend</span> <span class="ty">google.protobuf.EnumValueOptions</span> <span class="op">{</span>
+  <span class="k">optional</span> <span class="ty">RatioMeta</span> <span class="fn">ratio_meta</span> <span class="op">=</span> <span class="nm">50001</span><span class="op">;</span>
+<span class="op">}</span>
+
+<span class="k">enum</span> <span class="ty">AspectRatio</span> <span class="op">{</span>
+  <span class="fn">RATIO_1_1</span> <span class="op">=</span> <span class="nm">0</span> <span class="op">[(</span><span class="fn">ratio_meta</span><span class="op">) = {</span> <span class="fn">width</span><span class="op">:</span> <span class="nm">1</span> <span class="op">}];</span>
+  <span class="fn">RATIO_16_9</span> <span class="op">=</span> <span class="nm">1</span> <span class="op">[(</span><span class="fn">ratio_meta</span><span class="op">) = {</span> <span class="fn">width</span><span class="op">:</span> <span class="nm">16</span> <span class="op">}];</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>generates:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin — ProtoEnumMetadata.kt</span>
+        <pre><code><span class="cm">// GENERATED — do not edit. Source: proto enum definitions.</span>
+<span class="k">package</span> <span class="ty">com.example.generated</span>
+
+<span class="k">import</span> <span class="ty">com.example.model.AspectRatio</span>
+
+<span class="k">val</span> <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">width</span><span class="op">:</span> <span class="ty">Int</span>
+    <span class="k">get</span><span class="op">() = </span><span class="k">when</span> <span class="op">(</span><span class="k">this</span><span class="op">) {</span>
+        <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">RATIO_1_1</span> <span class="op">-&gt;</span> <span class="nm">1</span>
+        <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">RATIO_16_9</span> <span class="op">-&gt;</span> <span class="nm">16</span>
+    <span class="op">}</span></code></pre>
+      </div>
+
+      <p>The <code>metadata</code> block exposes:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Property</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>protoDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td class="required">Yes</td>
+              <td>Directory of <code>.proto</code> sources. Setting it is what enables this block.</td>
+            </tr>
+            <tr>
+              <td><code>basePackage</code></td>
+              <td><code>Property&lt;String&gt;</code></td>
+              <td class="required">Yes</td>
+              <td>Package of the generated file.</td>
+            </tr>
+            <tr>
+              <td><code>outputDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td>No</td>
+              <td>Defaults to <code>build/generated/source/protoExtended/metadata</code>. Rarely overridden.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">protoExtended</span> <span class="op">{</span>
+    <span class="fn">metadata</span> <span class="op">{</span>
+        <span class="fn">protoDir</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="fn">layout</span><span class="op">.</span><span class="fn">projectDirectory</span><span class="op">.</span><span class="fn">dir</span><span class="op">(</span><span class="st">"proto"</span><span class="op">))</span>
+        <span class="fn">basePackage</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"com.example.generated"</span><span class="op">)</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>
+        Supported scalar types, carried over unchanged from every proto3
+        field the plugin reads:
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Proto</th><th>Kotlin</th></tr></thead>
+          <tbody>
+            <tr><td><code>string</code></td><td><code>String</code></td></tr>
+            <tr><td><code>double</code></td><td><code>Double</code></td></tr>
+            <tr><td><code>float</code></td><td><code>Float</code></td></tr>
+            <tr><td><code>int32</code>, <code>uint32</code></td><td><code>Int</code></td></tr>
+            <tr><td><code>int64</code>, <code>uint64</code></td><td><code>Long</code></td></tr>
+            <tr><td><code>bool</code></td><td><code>Boolean</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─── Android resource generation ──────────────────── -->
+    <section id="android-resources" class="doc-section">
+      <h2>Android resource generation</h2>
+      <p>
+        <code>androidResources { }</code> reads the <code>(gen.resources)</code>
+        option declared in <a href="#gen-options">gen_options.proto</a> and
+        emits an <code>@StringRes</code> and/or <code>@DrawableRes</code>
+        accessor per flagged enum. The resource name is the constant name,
+        lowercased.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">aspect_ratio.proto</span>
+        <pre><code><span class="cm">// same file as above, with the resource option added to the enum</span>
+<span class="k">enum</span> <span class="ty">AspectRatio</span> <span class="op">{</span>
+  <span class="k">option</span> <span class="op">(</span><span class="fn">gen.resources</span><span class="op">) = {</span> <span class="fn">display_name</span><span class="op">:</span> <span class="nm">true</span><span class="op">,</span> <span class="fn">icon</span><span class="op">:</span> <span class="nm">true</span> <span class="op">};</span>
+  <span class="fn">RATIO_1_1</span> <span class="op">=</span> <span class="nm">0</span><span class="op">;</span>
+  <span class="fn">RATIO_16_9</span> <span class="op">=</span> <span class="nm">1</span><span class="op">;</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <p>generates:</p>
+
+      <div class="code-wrap">
+        <span class="code-lang">generated kotlin — ProtoEnumResources.kt</span>
+        <pre><code><span class="cm">// GENERATED — do not edit. Source: proto enum definitions.</span>
+<span class="k">package</span> <span class="ty">com.example.generated.res</span>
+
+<span class="k">import</span> <span class="ty">androidx.annotation.DrawableRes</span>
+<span class="k">import</span> <span class="ty">androidx.annotation.StringRes</span>
+<span class="k">import</span> <span class="ty">com.example.app.R</span>
+<span class="k">import</span> <span class="ty">com.example.model.AspectRatio</span>
+
+<span class="op">@get:</span><span class="ty">StringRes</span>
+<span class="k">val</span> <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">displayName</span><span class="op">:</span> <span class="ty">Int</span>
+    <span class="k">get</span><span class="op">() = </span><span class="k">when</span> <span class="op">(</span><span class="k">this</span><span class="op">) {</span>
+        <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">RATIO_1_1</span> <span class="op">-&gt;</span> <span class="ty">R</span><span class="op">.</span><span class="fn">string</span><span class="op">.</span><span class="fn">ratio_1_1</span>
+        <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">RATIO_16_9</span> <span class="op">-&gt;</span> <span class="ty">R</span><span class="op">.</span><span class="fn">string</span><span class="op">.</span><span class="fn">ratio_16_9</span>
+    <span class="op">}</span>
+
+<span class="op">@get:</span><span class="ty">DrawableRes</span>
+<span class="k">val</span> <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">icon</span><span class="op">:</span> <span class="ty">Int</span>
+    <span class="k">get</span><span class="op">() = </span><span class="k">when</span> <span class="op">(</span><span class="k">this</span><span class="op">) {</span>
+        <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">RATIO_1_1</span> <span class="op">-&gt;</span> <span class="ty">R</span><span class="op">.</span><span class="fn">drawable</span><span class="op">.</span><span class="fn">ratio_1_1</span>
+        <span class="ty">AspectRatio</span><span class="op">.</span><span class="fn">RATIO_16_9</span> <span class="op">-&gt;</span> <span class="ty">R</span><span class="op">.</span><span class="fn">drawable</span><span class="op">.</span><span class="fn">ratio_16_9</span>
+    <span class="op">}</span></code></pre>
+      </div>
+
+      <p>The <code>androidResources</code> block exposes the same three
+      properties as <code>metadata</code>, plus one:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Property</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>rPackage</code></td>
+              <td><code>Property&lt;String&gt;</code></td>
+              <td class="required">Yes</td>
+              <td>Package holding the generated <code>R</code> class, e.g. <code>com.travelanimator.routemap</code>.</td>
+            </tr>
+            <tr>
+              <td><code>outputDir</code></td>
+              <td><code>DirectoryProperty</code></td>
+              <td>No</td>
+              <td>Defaults to <code>build/generated/source/protoExtended/androidResources</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">protoExtended</span> <span class="op">{</span>
+    <span class="fn">androidResources</span> <span class="op">{</span>
+        <span class="fn">protoDir</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="fn">layout</span><span class="op">.</span><span class="fn">projectDirectory</span><span class="op">.</span><span class="fn">dir</span><span class="op">(</span><span class="st">"proto"</span><span class="op">))</span>
+        <span class="fn">basePackage</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"com.example.generated.res"</span><span class="op">)</span>
+        <span class="fn">rPackage</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"com.example.app"</span><span class="op">)</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ─── Two-module setup ─────────────────────────────── -->
+    <section id="configuration" class="doc-section">
+      <h2>Two-module setup</h2>
+      <p>
+        In a Kotlin Multiplatform app, the module holding your protos and Wire
+        output is rarely the module that owns Android resources. proto-extended
+        is designed for exactly that split: apply it in both, and configure
+        only the block each module can satisfy.
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">shared/build.gradle.kts</span>
+        <pre><code><span class="cm">// the KMP module, next to the Wire output</span>
+<span class="fn">protoExtended</span> <span class="op">{</span>
+    <span class="fn">metadata</span> <span class="op">{</span>
+        <span class="fn">protoDir</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="fn">layout</span><span class="op">.</span><span class="fn">projectDirectory</span><span class="op">.</span><span class="fn">dir</span><span class="op">(</span><span class="st">"src/commonMain/proto"</span><span class="op">))</span>
+        <span class="fn">basePackage</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"com.lascade.ta.shared.generated"</span><span class="op">)</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <div class="code-wrap">
+        <span class="code-lang">app/build.gradle.kts</span>
+        <pre><code><span class="cm">// the Android module that owns strings/drawables</span>
+<span class="fn">protoExtended</span> <span class="op">{</span>
+    <span class="fn">androidResources</span> <span class="op">{</span>
+        <span class="fn">protoDir</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span>
+            <span class="fn">isolated</span><span class="op">.</span><span class="fn">rootProject</span><span class="op">.</span><span class="fn">projectDirectory</span><span class="op">.</span><span class="fn">dir</span><span class="op">(</span><span class="st">"shared/src/commonMain/proto"</span><span class="op">)</span>
+        <span class="op">)</span>
+        <span class="fn">basePackage</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"com.travelanimator.routemap.generated"</span><span class="op">)</span>
+        <span class="fn">rPackage</span><span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="st">"com.travelanimator.routemap"</span><span class="op">)</span>
+    <span class="op">}</span>
+<span class="op">}</span></code></pre>
+      </div>
+
+      <div class="callout tip">
+        <p class="callout-title">Why two blocks, not one</p>
+        <p>
+          <code>shared</code> is the KMP library holding the protos and Wire
+          output, but <code>R.string.*</code> belongs to the consuming
+          <code>app</code> module. A KMP library module cannot see the app's
+          <code>R</code>, so one generator could not serve both — each block
+          runs in the module that can actually satisfy it.
+          <code>isolated.rootProject.projectDirectory</code> lets
+          <code>app</code> point at <code>shared</code>'s proto directory
+          without breaking project isolation.
+        </p>
+      </div>
+
+      <p>
+        Wiring into a source set is automatic and lazy, keyed off whichever
+        plugin is also applied to the module:
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Consumer plugin</th><th><code>generateProtoMetadata</code> →</th><th><code>generateProtoAndroidResources</code> →</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>org.jetbrains.kotlin.multiplatform</code></td><td><code>commonMain</code></td><td><code>androidMain</code></td></tr>
+            <tr><td><code>org.jetbrains.kotlin.jvm</code></td><td><code>main</code></td><td>—</td></tr>
+            <tr><td><code>com.android.application</code> / <code>com.android.library</code></td><td>every variant (AGP Variant API)</td><td>every variant (AGP Variant API)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        These source-set names are fixed, not configurable — there is no
+        <code>sourceSet</code> property. Wiring runs during <code>apply()</code>,
+        before your <code>protoExtended { }</code> block has been evaluated, so
+        a property read at that point would always see an unset value. If your
+        module needs a different source set, wire it by hand:
+      </p>
+
+      <div class="code-wrap">
+        <span class="code-lang">build.gradle.kts</span>
+        <pre><code><span class="fn">kotlin</span><span class="op">.</span><span class="fn">sourceSets</span><span class="op">[</span><span class="st">"jvmMain"</span><span class="op">].</span><span class="fn">kotlin</span><span class="op">.</span><span class="fn">srcDir</span><span class="op">(</span><span class="fn">tasks</span><span class="op">.</span><span class="fn">named</span><span class="op">(</span><span class="st">"generateProtoMetadata"</span><span class="op">))</span></code></pre>
+      </div>
+
+      <div class="callout">
+        <p class="callout-title">Unwired diagnostic</p>
+        <p>
+          If a block is configured but none of the plugins above are present,
+          the build still succeeds — the task writes a valid file, but nothing
+          compiles it. proto-extended warns instead of failing silently:
+        </p>
+        <pre><code><span class="cm">w: protoExtended { metadata { … } } is configured, but nothing wired it into
+   a source set. Generated sources in
+   build/generated/source/protoExtended/metadata are not on any source set.
+   Add them manually with kotlin.srcDir(tasks.named("generateProtoMetadata"))
+   if that is intentional.</span></code></pre>
+        <p>
+          The warning tolerates a deliberate manual <code>srcDir</code> wire-up
+          like the one above — it only tells you nothing wired the output in,
+          not that you did something wrong.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── Validation rules ─────────────────────────────── -->
+    <section id="validation" class="doc-section">
+      <h2>Validation rules</h2>
+      <p>
+        proto3 scalars have no field presence, so a metadata field silently
+        defaulted to <code>0</code> / <code>""</code> / <code>false</code> is
+        indistinguishable from a genuinely-set value. Every rule below exists
+        to turn that class of silent bug into a build failure that names the
+        enum, constant and field:
+      </p>
+
+      <ol>
+        <li>
+          <strong>All constants set the option, or none.</strong> If any
+          constant of an enum carries a metadata option, every constant must —
+          a defaulted value for the rest would be silently wrong.
+        </li>
+        <li>
+          <strong>All constants set each field, or none.</strong> Same hazard,
+          checked per field rather than per option, since one meta message can
+          declare several fields. This check runs after the type check below —
+          a field of an unsupported type still fails the build even when no
+          constant sets it.
+        </li>
+        <li>
+          <strong>No field named <code>name</code>, <code>ordinal</code>, or
+          <code>value</code>, and no two meta messages contributing the same
+          field name to one enum.</strong> A real Kotlin <code>Enum</code>
+          member (or Wire's <code>WireEnum.value</code>) always wins over an
+          extension property of the same name, so the generated property
+          would be dead code with no compiler error.
+        </li>
+        <li>
+          <strong>Only <code>string</code>, <code>double</code>,
+          <code>float</code>, <code>int32</code>, <code>uint32</code>,
+          <code>int64</code>, <code>uint64</code> and <code>bool</code> fields
+          are read.</strong> <code>bytes</code>, <code>repeated</code>,
+          <code>map</code>, message-typed and enum-typed fields fail loudly
+          instead of being silently stringified.
+        </li>
+        <li>
+          <strong>Every field of the resource-flags message must be a
+          non-repeated bool named <code>display_name</code> or
+          <code>icon</code>.</strong> Protoc already rejects a misspelled
+          option reference; this catches a field the plugin has no meaning
+          for.
+        </li>
+      </ol>
+
+      <p>Rule 1 failing looks like this:</p>
+
+      <pre><code><span class="cm">&gt; Task :shared:generateProtoMetadata FAILED
+
+Enum `ta.AspectRatio` declares (ratio_meta) on 1 of 2 constants. Missing on:
+  - RATIO_16_9
+
+Every constant must set the option, or none.</span></code></pre>
+    </section>
+
+    <!-- ─── Non-goals ─────────────────────────────────────── -->
+    <section id="non-goals" class="doc-section">
+      <h2>Non-goals</h2>
+      <p>Deliberate limits, surfaced upfront.</p>
+
+      <ul>
+        <li><strong>No comment-directive fallback.</strong> The old buildSrc task's <code>// gen:string</code> / <code>// gen:drawable</code> leading comments are not supported — only the <code>(gen.resources)</code> option.</li>
+        <li><strong>No resource-existence validation.</strong> A missing <code>R.string.foo</code> is already a compile error; catching it here would only move the error a few seconds earlier.</li>
+        <li><strong>No iOS or Linux output.</strong> Wire already exposes <code>Enum.name</code> to every KMP target — nothing needs generating there.</li>
+        <li><strong>No enum- or message-typed metadata fields.</strong> Only the eight scalar types listed under <a href="#metadata">Metadata generation</a> are read.</li>
+        <li><strong>No <code>oneof</code> metadata fields.</strong> Unlike <code>bytes</code>, <code>repeated</code> and <code>map</code> fields, which fail the build, a <code>oneof</code> inside a meta message is silently excluded by Wire's <code>declaredFields</code> — it generates nothing and reports nothing.</li>
+        <li><strong>No configurable property names.</strong> Generated accessors are always named for the field (<code>width</code>) or the fixed pair (<code>displayName</code>, <code>icon</code>).</li>
+        <li><strong>Wire Kotlin codegen is assumed.</strong> protobuf-lite and pbandk generate different class names and are out of scope.</li>
+        <li><strong>Wire is assumed to generate every enum on the proto path.</strong> An enum dropped via Wire's <code>prune</code> or <code>exclude</code> still gets extension properties generated against a class that no longer exists — both generators read <code>.proto</code> sources directly and never inspect Wire's output.</li>
+        <li><strong>No configurable <code>sourceSet</code>.</strong> <code>commonMain</code>, <code>main</code> and <code>androidMain</code> are hardcoded; wire a different one by hand with <code>kotlin.srcDir(tasks.named("generateProtoMetadata"))</code>.</li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+<!-- ─── Footer ──────────────────────────────────────────────── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <a href="index" class="footer-brand">Plugables</a>
+    <span class="footer-meta">com.rohittp.plugables.proto-extended · v1.0.0</span>
+    <div class="footer-links">
+      <a href="https://github.com/rohittp0/plugables/tree/main/proto-extended" target="_blank" rel="noopener noreferrer">Source</a>
+      <a href="branchmark">← branchmark</a>
+      <a href="index">All plugins</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

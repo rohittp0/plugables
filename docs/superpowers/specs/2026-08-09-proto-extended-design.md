@@ -75,7 +75,6 @@ protoExtended {
     metadata {
         protoDir.set(layout.projectDirectory.dir("src/commonMain/proto"))
         basePackage.set("com.lascade.ta.shared.generated")
-        sourceSet.set("commonMain")   // optional; see defaults below
     }
 }
 
@@ -105,10 +104,6 @@ Both tasks share this input shape:
 | `outputDir` | `@OutputDirectory` | Defaults to `build/generated/source/protoExtended/metadata` and `…/androidResources` respectively |
 
 `generateProtoAndroidResources` adds `rPackage` (`@Input`).
-
-Both blocks expose an optional `sourceSet` property. It is only consulted for
-Kotlin Multiplatform and Kotlin JVM consumers; the AGP variant API path ignores
-it, since variant sources are not addressed by source-set name.
 
 `protoDir` is `@Internal` rather than `@InputDirectory` deliberately: a required
 `@InputDirectory` fails at input-snapshot time when unconfigured, which would
@@ -266,7 +261,7 @@ genuinely-set `0`. That is a silent wrong-value bug, so it now fails instead.
 ```
 > Task :shared:generateProtoMetadata FAILED
 
-Enum `AspectRatio` declares (aspect_ratio_meta) on 2 of 3 constants. Missing on:
+Enum `ta.AspectRatio` declares (aspect_ratio_meta) on 2 of 3 constants. Missing on:
   - RATIO_16_9
 
 Every constant must set the option, or none.
@@ -277,8 +272,10 @@ Rules:
 1. **All-or-nothing option presence** — if any constant of an enum carries the
    option, all constants must.
 2. **All-or-nothing field presence** — a field set on some constants but not
-   others fails. A field set on *no* constant is simply not generated (existing
-   behaviour, and correct — nobody consumes it).
+   others fails. A field set on *no* constant is not generated, *provided its
+   type is one Rule 4 supports* — type-checking runs unconditionally on every
+   declared field before presence is counted, so an unsupported-typed field
+   still fails the build even when no constant sets it.
 3. **Reserved names** — a meta field named `name` or `ordinal` (Kotlin `Enum`
    members) or `value` (Wire's `WireEnum.value`), or two different meta messages
    contributing the same field name to the same enum.
@@ -326,8 +323,7 @@ generated file and busts the build cache.
 
 ## Source-set wiring
 
-All wiring is lazy via `plugins.withId`. `sourceSet` is left unset by default so
-each branch supplies its own default.
+All wiring is lazy via `plugins.withId`.
 
 | Consumer plugin | `generateProtoMetadata` → | `generateProtoAndroidResources` → |
 |---|---|---|
@@ -347,8 +343,8 @@ So the failure mode is fixed instead. Each `plugins.withId` branch flips a `wire
 flag; if a block was configured and nothing wired it, the plugin warns:
 
 ```
-w: protoExtended { metadata { … } } is configured, but no Kotlin Multiplatform,
-   Kotlin JVM or Android plugin was found to wire it into. Generated sources in
+w: protoExtended { metadata { … } } is configured, but nothing wired it into
+   a source set. Generated sources in
    build/generated/source/protoExtended/metadata are not on any source set.
 ```
 
@@ -459,6 +455,13 @@ Metadata options are untouched — the three `*_meta` extensions and every
   generated for it, which then fail to compile against a class that does not
   exist. Both generators read `.proto` sources directly and never inspect Wire's
   output.
+- **No configurable `sourceSet`** — dropped from the approved design. `plugins.withId`
+  fires during `apply()`, before the consumer's `protoExtended { }` block runs, so the
+  property is always unset when the wiring needs it. Source sets are hardcoded:
+  `commonMain` (KMP metadata), `main` (Kotlin JVM metadata), `androidMain` (KMP
+  resources). Wire a different one by hand with
+  `kotlin.srcDir(tasks.named("generateProtoMetadata"))`; the unwired diagnostic
+  tolerates it.
 
 ## Task ordering
 
