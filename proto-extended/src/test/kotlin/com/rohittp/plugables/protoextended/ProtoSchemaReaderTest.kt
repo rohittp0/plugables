@@ -225,4 +225,83 @@ class ProtoSchemaReaderTest {
 
         assertTrue(ProtoSchemaReader(tmp).read().single().metaProperties.isEmpty())
     }
+
+    @Test
+    fun `reads display_name and icon flags from the enum option`(@TempDir tmp: File) {
+        ProtoFixtures.write(tmp, "gen_options.proto", ProtoFixtures.GEN_OPTIONS)
+        ProtoFixtures.write(
+            tmp, "sample.proto",
+            """
+            syntax = "proto3";
+            package ta;
+            import "gen_options.proto";
+
+            enum AspectRatio {
+              option (gen.resources) = { display_name: true, icon: true };
+              RATIO_1_1 = 0;
+            }
+
+            enum Intro {
+              option (gen.resources) = { display_name: true };
+              INTRO_DEFAULT = 0;
+            }
+
+            enum Plain { ONE = 0; }
+            """,
+        )
+
+        val byRef = ProtoSchemaReader(tmp).read().associateBy { it.kotlinRef }
+
+        assertEquals(ResourceFlags(displayName = true, icon = true), byRef.getValue("AspectRatio").resourceFlags)
+        assertEquals(ResourceFlags(displayName = true, icon = false), byRef.getValue("Intro").resourceFlags)
+        assertEquals(ResourceFlags(), byRef.getValue("Plain").resourceFlags)
+    }
+
+    @Test
+    fun `flag set to false is treated as absent`(@TempDir tmp: File) {
+        ProtoFixtures.write(tmp, "gen_options.proto", ProtoFixtures.GEN_OPTIONS)
+        ProtoFixtures.write(
+            tmp, "sample.proto",
+            """
+            syntax = "proto3";
+            package ta;
+            import "gen_options.proto";
+
+            enum Intro {
+              option (gen.resources) = { display_name: true, icon: false };
+              INTRO_DEFAULT = 0;
+            }
+            """,
+        )
+
+        assertEquals(
+            ResourceFlags(displayName = true, icon = false),
+            ProtoSchemaReader(tmp).read().single { it.kotlinRef == "Intro" }.resourceFlags,
+        )
+    }
+
+    @Test
+    fun `unrelated enum options extension is ignored`(@TempDir tmp: File) {
+        ProtoFixtures.write(
+            tmp, "sample.proto",
+            """
+            syntax = "proto3";
+            package ta;
+            import "google/protobuf/descriptor.proto";
+
+            message Unrelated { string note = 1; }
+
+            extend google.protobuf.EnumOptions {
+              optional Unrelated unrelated = 50200;
+            }
+
+            enum Intro {
+              option (ta.unrelated) = { note: "hi" };
+              INTRO_DEFAULT = 0;
+            }
+            """,
+        )
+
+        assertEquals(ResourceFlags(), ProtoSchemaReader(tmp).read().single().resourceFlags)
+    }
 }

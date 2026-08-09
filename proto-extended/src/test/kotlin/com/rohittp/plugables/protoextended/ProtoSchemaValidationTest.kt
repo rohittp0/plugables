@@ -188,4 +188,57 @@ class ProtoSchemaValidationTest {
 
         assertContains(error.message!!, "inner")
     }
+
+    @Test
+    fun `rule 5 - unknown field in the resource option message fails`(@TempDir tmp: File) {
+        ProtoFixtures.write(
+            tmp, "gen_options.proto",
+            """
+            syntax = "proto3";
+            package gen;
+            import "google/protobuf/descriptor.proto";
+
+            message ResourceGen {
+              bool display_name = 1;
+              bool icon = 2;
+              bool tint = 3;
+            }
+
+            extend google.protobuf.EnumOptions {
+              optional ResourceGen resources = 50100;
+            }
+            """,
+        )
+
+        val error = assertFailsWith<ProtoSchemaException> { ProtoSchemaReader(tmp).read() }
+
+        assertContains(error.message!!, "tint")
+        assertContains(error.message!!, "display_name")
+        assertContains(error.message!!, "icon")
+    }
+
+    @Test
+    fun `rule 5 - non-bool resource flag fails`(@TempDir tmp: File) {
+        ProtoFixtures.write(
+            tmp, "gen_options.proto",
+            """
+            syntax = "proto3";
+            package gen;
+            import "google/protobuf/descriptor.proto";
+
+            message ResourceGen {
+              string display_name = 1;
+            }
+
+            extend google.protobuf.EnumOptions {
+              optional ResourceGen resources = 50100;
+            }
+            """,
+        )
+
+        val error = assertFailsWith<ProtoSchemaException> { ProtoSchemaReader(tmp).read() }
+
+        assertContains(error.message!!, "display_name")
+        assertContains(error.message!!, "bool")
+    }
 }

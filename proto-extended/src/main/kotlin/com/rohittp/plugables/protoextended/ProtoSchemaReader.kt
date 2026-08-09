@@ -25,6 +25,7 @@ class ProtoSchemaReader(private val protoDir: File) {
     fun read(): List<ProtoEnumInfo> {
         val schema = loadSchema()
         val metaSpecs = discoverMetaSpecs(schema)
+        val resourceSpec = discoverResourceSpec(schema)
 
         return schema.protoFiles
             .filter { !it.packageName.orEmpty().startsWith("google.protobuf") }
@@ -38,7 +39,7 @@ class ProtoSchemaReader(private val protoDir: File) {
                     kotlinImport = kotlinImport(schema, enumType.type),
                     constantNames = enumType.constants.map { it.name },
                     metaProperties = metaProperties(enumType, metaSpecs),
-                    resourceFlags = ResourceFlags(),
+                    resourceFlags = resourceFlags(enumType, resourceSpec),
                 )
             }
             .sortedBy { it.qualifiedName }
@@ -205,6 +206,71 @@ class ProtoSchemaReader(private val protoDir: File) {
         }
     }
 
+    /** The recognised `extend google.protobuf.EnumOptions` field carrying resource flags. */
+    private data class ResourceOptionSpec(
+        val optionMember: ProtoMember,
+        val messageType: ProtoType,
+    )
+
+    /**
+     * An `EnumOptions` extension is ours if its message declares at least one known flag.
+     * Matching on the option's name would hardcode `gen.resources`; matching every
+     * `EnumOptions` extension would reject a consumer's unrelated ones.
+     */
+    private fun discoverResourceSpec(schema: Schema): ResourceOptionSpec? {
+        val candidates = schema.protoFiles
+            .flatMap { it.extendList }
+            .filter { it.type == Options.ENUM_OPTIONS }
+            .flatMap { it.fields }
+            .mapNotNull { field ->
+                val fieldType = field.type ?: return@mapNotNull null
+                val message = schema.getType(fieldType) as? MessageType ?: return@mapNotNull null
+                if (message.declaredFields.none { it.name in RESOURCE_FLAGS }) return@mapNotNull null
+                message to ResourceOptionSpec(
+                    optionMember = ProtoMember.get(Options.ENUM_OPTIONS, field.qualifiedName),
+                    messageType = fieldType,
+                )
+            }
+
+        if (candidates.isEmpty()) return null
+        if (candidates.size > 1) {
+            throw ProtoSchemaException(
+                "Found ${candidates.size} google.protobuf.EnumOptions extensions declaring " +
+                    "resource flags: ${candidates.joinToString { it.second.messageType.toString() }}. " +
+                    "Declare exactly one.",
+            )
+        }
+
+        val (message, spec) = candidates.single()
+
+        // Rule 5 — every declared field must be a bool the plugin understands.
+        for (field in message.declaredFields) {
+            if (field.name !in RESOURCE_FLAGS) {
+                throw ProtoSchemaException(
+                    "Field `${field.name}` of `${spec.messageType}` is not a resource flag " +
+                        "proto-extended understands. Supported flags: ${RESOURCE_FLAGS.joinToString()}.",
+                )
+            }
+            if (field.type != ProtoType.BOOL || field.isRepeated) {
+                throw ProtoSchemaException(
+                    "Resource flag `${field.name}` of `${spec.messageType}` must be a bool, " +
+                        "but is `${field.type}`.",
+                )
+            }
+        }
+
+        return spec
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun resourceFlags(enumType: EnumType, spec: ResourceOptionSpec?): ResourceFlags {
+        if (spec == null) return ResourceFlags()
+        val flags = enumType.options.get(spec.optionMember) as? Map<ProtoMember, Any?>
+            ?: return ResourceFlags()
+        fun flag(name: String) = flags[ProtoMember.get(spec.messageType, name)]?.toString() == "true"
+        return ResourceFlags(displayName = flag("display_name"), icon = flag("icon"))
+    }
+
     private companion object {
         /**
          * Names an extension property must not take. `name` and `ordinal` are Kotlin
@@ -212,5 +278,8 @@ class ProtoSchemaReader(private val protoDir: File) {
          * over an extension, so a clash is dead code with no compiler error.
          */
         val RESERVED_NAMES = setOf("name", "ordinal", "value")
+
+        /** Recognised `ResourceGen` flag field names, in the order they are reported. */
+        val RESOURCE_FLAGS = setOf("display_name", "icon")
     }
 }
