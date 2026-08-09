@@ -58,3 +58,40 @@ for known prefixes.
   does no runtime (in-app) icon switching.
 - **CI checkouts must pass the branch.** Detached/shallow CI clones resolve to the fallback unless
   `-PgitBranch=$BRANCH` or `GIT_BRANCH` is supplied (e.g. `${{ github.head_ref || github.ref_name }}`).
+
+## proto-extended
+
+Generates Kotlin extension properties on proto enums. Everything it reads is a **custom proto option**,
+never a comment — the plugin has no opinion the schema doesn't state explicitly.
+
+Two independent generators, because their inputs live in different modules: the **metadata** half needs
+only the protos and emits pure Kotlin into `commonMain`, while the **resource** half needs the module
+that owns `R` and emits Android-only accessors. A KMP library module cannot see the consuming app's `R`,
+so one generator could not serve both.
+
+| Term | Meaning |
+|------|---------|
+| **Meta option** | An `extend google.protobuf.EnumValueOptions` field whose type is a message. Applied per **enum constant**. Each field of that message becomes one **metadata property**. |
+| **Metadata property** | A generated extension property on the enum, named for a meta-message field, mapping every constant to that field's value — e.g. `val AspectRatio.width: Int`. Pure Kotlin, so it compiles for every KMP target. |
+| **Resource option** | The `extend google.protobuf.EnumOptions` field (`gen.resources`) carrying `ResourceGen` flags. Applied per **enum**, not per constant. Replaces the buildSrc task's `// gen:string` comment directive. |
+| **Resource flag** | A `bool` field of `ResourceGen`. Named for the Kotlin property it generates (`display_name`, `icon`), not the Android resource folder, since the property name is what stays stable across platforms. |
+| **Resource accessor** | A generated `@get:StringRes val X.displayName: Int` or `@get:DrawableRes val X.icon: Int`, resolving `R.string.<constant>` / `R.drawable.<constant>` (constant name lowercased). Android only. |
+| **Reserved name** | A meta-message field name that would collide with an existing member of the generated enum: `name` and `ordinal` (Kotlin `Enum`) or `value` (Wire's `WireEnum`). A build error. |
+
+Package resolution for generated imports follows Wire's own `KotlinGenerator` precedence —
+`wire_package` → `java_package` → proto package. A nested enum is referenced through its enclosing
+message (`Distance.Unit`) and imports that message, never the nested enum itself, which would shadow
+`kotlin.Unit`.
+
+### Non-goals (intentional limitations)
+
+- **Android is the only generated platform.** Wire emits plain Kotlin enums, so Swift already has
+  `Enum.name` for `Image(ratio.name)` and `String(localized:)`. Android is generated because
+  `R.string."intro_default"` is impossible without `Resources.getIdentifier()`. Consequence: iOS asset
+  keys must be uppercase to match `Enum.name`, and verifying they exist is the iOS developer's job.
+- **Absent values fail the build, never default.** proto3 scalars have no field presence, so a
+  defaulted `0` is indistinguishable from a set `0`. If any constant of an enum carries a meta option,
+  all must, and every field it uses must be set on all of them.
+- **Scalar meta fields only.** `bytes`, `repeated`, `map`, message- and enum-typed meta fields are a
+  build error rather than being silently stringified.
+- **Wire Kotlin codegen is assumed.** protobuf-lite and pbandk produce different class names.

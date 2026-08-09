@@ -26,6 +26,10 @@ The existing buildSrc task generates three things from proto enums:
 2. `icon` (`@DrawableRes` → `R.drawable.*`) for enums marked `// gen:drawable`
 3. Typed metadata properties from `extend google.protobuf.EnumValueOptions`
 
+Items 1 and 2 move from the comment directive to a real custom enum option (see
+[generateProtoAndroidResources](#generateprotoandroidresources)); this is the
+one breaking change for existing protos.
+
 Item 3 is pure Kotlin and belongs in `commonMain` next to the Wire output.
 Items 1 and 2 reference Android resource IDs and cannot exist in `commonMain`.
 
@@ -78,7 +82,7 @@ protoExtended {
 // app/build.gradle.kts — the Android module that owns strings/drawables
 protoExtended {
     androidResources {
-        protoDir.set(rootProject.layout.projectDirectory.dir("shared/src/commonMain/proto"))
+        protoDir.set(isolated.rootProject.projectDirectory.dir("shared/src/commonMain/proto"))
         basePackage.set("com.travelanimator.routemap.generated")
         rPackage.set("com.travelanimator.routemap")
     }
@@ -170,9 +174,60 @@ Scalar type mapping, carried over unchanged:
 
 ### generateProtoAndroidResources
 
-Parses the existing leading-comment directives — `// gen:string`,
-`// gen:drawable`, `// gen:string+drawable` — unchanged, so current protos work
-without edits. Resource name is `constant.name.lowercase()`.
+Reads a **custom enum option**, not a comment. This replaces the buildSrc task's
+`// gen:string` / `// gen:drawable` / `// gen:string+drawable` leading-comment
+directives, which protoc never sees and nothing validates — a typo like
+`// gen:sting` silently generates nothing and surfaces at the call site.
+
+The consumer declares the extension once, in the house style already set by
+`mcp_options.proto`:
+
+```proto
+// gen_options.proto
+syntax = "proto3";
+package gen;
+import "google/protobuf/descriptor.proto";
+
+message ResourceGen {
+  bool display_name = 1;   // generate `val X.displayName: Int` -> R.string.*
+  bool icon = 2;           // generate `val X.icon: Int`        -> R.drawable.*
+}
+
+extend google.protobuf.EnumOptions {
+  optional ResourceGen resources = 50100;
+}
+```
+
+and applies it per enum:
+
+```proto
+import "gen_options.proto";
+
+enum AspectRatio {
+  option (gen.resources) = { display_name: true, icon: true };
+  RATIO_1_1 = 0 [(aspect_ratio_meta) = { width: 1, height: 1, scale: 0.5 }];
+  …
+}
+```
+
+This extends `EnumOptions` (the enum itself), not `EnumValueOptions` (its
+constants) — the difference from the three existing `*_meta` extensions.
+Extension field numbers only need uniqueness per extended type, so 50100 does
+not collide with `mcp.meta`'s 50000 or `*_meta`'s 50001-50003; it is chosen only
+to stay visually distinct.
+
+Flags are named for the **generated Kotlin property** (`display_name`, `icon`)
+rather than the Android resource folder (`string`, `drawable`), because the
+property name is the part that is stable now that the plugin is multiplatform-
+aware. `bool string = 1;` would also be a poor field name.
+
+Reading it is structurally identical to the metadata half, one descriptor level
+up — `Options.ENUM_OPTIONS` instead of `Options.ENUM_VALUE_OPTIONS`, and
+`EnumType.options` instead of `EnumConstant.options`. Both verified present in
+wire-schema 6.4.5. `parseGenDirective` and its `documentation` string-munging
+are deleted outright.
+
+Resource name is `constant.name.lowercase()`.
 
 ```kotlin
 @get:StringRes
@@ -193,7 +248,7 @@ Imports `androidx.annotation.StringRes`, `androidx.annotation.DrawableRes`, and
 
 Both generators emit a header-only file (banner comment plus `package`
 declaration, no imports) when the protos parse successfully but yield nothing to
-generate — no enum carries a `gen:` directive, or no enum carries a metadata
+generate — no enum carries a resource option, or no enum carries a metadata
 option. Writing the file unconditionally keeps the output directory a valid,
 stable source root across incremental builds.
 
@@ -224,13 +279,31 @@ Rules:
 2. **All-or-nothing field presence** — a field set on some constants but not
    others fails. A field set on *no* constant is simply not generated (existing
    behaviour, and correct — nobody consumes it).
-3. **Name collisions** — a meta field named `name` or `ordinal` (Kotlin `Enum`
+3. **Reserved names** — a meta field named `name` or `ordinal` (Kotlin `Enum`
    members) or `value` (Wire's `WireEnum.value`), or two different meta messages
    contributing the same field name to the same enum.
+
+   These three specifically, because an extension property cannot shadow a real
+   member: the member silently wins and the generated property becomes dead code
+   with no error anywhere. That is the hazard being guarded against. A meta field
+   named `displayName` or `icon` colliding with a resource accessor is *not*
+   reserved — that produces a loud "conflicting overloads" compile error, and only
+   when both blocks share a `basePackage`, which they do not in travel-animator.
+   Documented, not enforced.
 4. **Unsupported field types** — `bytes`, `repeated`, `map`, message-typed and
    enum-typed meta fields fail. The buildSrc task has an `else -> "String"`
    fallback that silently stringifies these into plausible-looking but wrong
    properties.
+5. **Unknown resource flags** — a `ResourceGen` field the plugin does not
+   recognise fails, listing the supported flags. Protoc already rejects a
+   misspelled flag, so this only catches a consumer who adds a field the plugin
+   has no meaning for.
+
+Verified against travel-animator's current schema: all three metadata-bearing
+enums already satisfy rules 1 and 2 — `AspectRatio` (3/3 constants, all of
+`width`/`height`/`scale`), `Resolution` (2/2, `pixels`/`label`), `Distance.Unit`
+(3/3, `symbol`/`multiplier`). The strict rules cost nothing today; they only
+catch future drift.
 
 No resource-existence validation for the Android generator: a missing
 `R.string.foo` is already a compile error, so a validator would only move the
@@ -261,6 +334,28 @@ each branch supplies its own default.
 | `org.jetbrains.kotlin.multiplatform` | `kotlin.sourceSets["commonMain"].kotlin.srcDir(task)` | `sourceSets["androidMain"]` |
 | `org.jetbrains.kotlin.jvm` | `sourceSets["main"]` | — |
 | `com.android.application` / `com.android.library` | variant API | `variant.sources.kotlin?.addGeneratedSourceDirectory(...)` |
+
+All five branches ship, even though travel-animator only exercises two (`metadata`
+→ KMP `commonMain` in `shared`, `androidResources` → AGP variants in `app`). With
+no automated wiring tests, the risk is not a crash but a silent no-op: the task
+runs, writes a valid `.kt` file, and nothing compiles it — you get
+`Unresolved reference: displayName` at the call site while the generator reports
+success. Trimming the surface would not help, since a consumer with no recognised
+plugin hits the same no-op.
+
+So the failure mode is fixed instead. Each `plugins.withId` branch flips a `wired`
+flag; if a block was configured and nothing wired it, the plugin warns:
+
+```
+w: protoExtended { metadata { … } } is configured, but no Kotlin Multiplatform,
+   Kotlin JVM or Android plugin was found to wire it into. Generated sources in
+   build/generated/source/protoExtended/metadata are not on any source set.
+```
+
+This is the one permitted `afterEvaluate`, used purely as a diagnostic — no task
+graph depends on it, so the ordering fragility that makes `afterEvaluate` a smell
+does not apply. A warning rather than an error, so a consumer deliberately wiring
+the srcDir by hand is not blocked.
 
 `srcDir(taskProvider)` carries the task dependency itself. Unlike typed-events,
 which additionally does
@@ -298,14 +393,26 @@ the full artifact is the required `compileOnly`, not the `-api` one.
 - `wire_package` taking precedence over `java_package`
 - Deterministic ordering: reordering input protos produces identical output
 
-**ProjectBuilder** — apply KMP plus the plugin, assert the output dir lands in
-`commonMain` srcDirs. Wiring is the riskiest part; this covers it without a
-network build.
+**TestKit** — mirroring `BranchmarkTestKitTest`: both tasks execute and write
+their file, a second run is `UP_TO_DATE`, `--configuration-cache` is reused, and
+an unconfigured block reports `NO-SOURCE`. The fixture applies only this plugin —
+no AGP, no KGP, no network.
 
-**TestKit** — mirroring `BranchmarkTestKitTest`: task executes and writes the
-file, second run is `UP_TO_DATE`, `--configuration-cache` is reused, and an
-unconfigured block reports `NO-SOURCE`. Like branchmark, the fixture applies only
-this plugin, so no AGP or KGP resolution is needed at test time.
+**No automated wiring tests.** This follows the established precedent rather than
+departing from it: `BranchmarkTestKitTest` says in its own doc comment that it
+drives the task *without* AGP, and `TypedEventsPlugin` wires both AGP variants
+and `compile*Kotlin` with no wiring test at all.
+
+The reasoning is specific to this repo's CI. `.github/workflows/publish.yml` runs
+`./gradlew :<plugin>:build :<plugin>:publishToMavenCentral`, and `build` depends
+on `check` — so **tests are the publish gate**, and that gate fires exactly when a
+`version = "…"` line changes. A ProjectBuilder test that applies
+`org.jetbrains.kotlin.multiplatform` is the flakiest thing that could sit there:
+KMP does substantial eager work at apply time and `kotlin.sourceSets` is not
+predictable until a target is declared, which pulls in a real toolchain.
+
+Source-set wiring is instead verified by hand against travel-animator during
+rollout.
 
 ## Repo housekeeping
 
@@ -316,8 +423,30 @@ this plugin, so no AGP or KGP resolution is needed at test time.
 - A `CONTEXT.md` section covering the terms that span files: *meta option spec*,
   *gen directive*, *metadata property*, *reserved name*
 
+## Consumer migration
+
+One breaking change relative to the buildSrc task. In travel-animator:
+
+1. Add `shared/src/commonMain/proto/gen_options.proto` as above.
+2. `animation_style.proto` — add `import "gen_options.proto";` and replace the
+   `// gen:string` comment on `Intro`, `Running` and `Outro` with
+   `option (gen.resources) = { display_name: true };`.
+3. `animation_state.proto` — add the same import (it already imports
+   `descriptor.proto`), then replace `// gen:string+drawable` on `AspectRatio`
+   with `{ display_name: true, icon: true }`, and `// gen:string` on `Resolution`
+   and `Distance.Unit` with `{ display_name: true }`.
+4. Delete `buildSrc/src/main/kotlin/com/lascade/proto/GenerateProtoExtensionsTask.kt`
+   and the `tasks.register<GenerateProtoExtensionsTask>` block plus its
+   `androidComponents.onVariants` and `preBuild` wiring in `app/build.gradle.kts`.
+
+Metadata options are untouched — the three `*_meta` extensions and every
+`[(…_meta) = { … }]` on a constant stay exactly as they are.
+
 ## Non-goals for v1
 
+- **No comment-directive fallback** — the `// gen:` form is not supported
+  alongside the option. Supporting both would mean two code paths and two ways
+  to express the same thing, and the migration is a handful of lines.
 - **No resource-existence validation** — Android's compiler already catches it.
 - **No iOS or linux output** — `Enum.name` already gives Swift what it needs.
 - **No enum- or message-typed metadata fields** — enum-typed is the obvious
@@ -325,3 +454,15 @@ this plugin, so no AGP or KGP resolution is needed at test time.
 - **No configurable property names** — `displayName` and `icon` stay fixed.
 - **Wire Kotlin codegen is assumed** — protobuf-lite and pbandk generate
   different class names and are out of scope.
+- **Wire is assumed to generate every enum on the proto path** — a consumer using
+  Wire's `prune` or `exclude` to drop an enum still gets extension properties
+  generated for it, which then fail to compile against a class that does not
+  exist. Both generators read `.proto` sources directly and never inspect Wire's
+  output.
+
+## Task ordering
+
+Neither task depends on Wire's codegen task, and no ordering is needed. Both read
+`.proto` sources directly, so their outputs are just additional source dirs on the
+same source set as Wire's — the Kotlin compiler resolves the cross-references when
+it compiles them together. There is no cycle and no `mustRunAfter`.
