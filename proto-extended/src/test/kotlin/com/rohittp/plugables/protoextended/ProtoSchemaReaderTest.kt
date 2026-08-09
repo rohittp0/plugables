@@ -159,4 +159,53 @@ class ProtoSchemaReaderTest {
             ProtoSchemaReader(tmp).read().map { it.qualifiedName },
         )
     }
+
+    @Test
+    fun `reads metadata properties with mapped scalar types`(@TempDir tmp: File) {
+        ProtoFixtures.write(
+            tmp, "sample.proto",
+            """
+            syntax = "proto3";
+            package ta;
+            import "google/protobuf/descriptor.proto";
+
+            message UnitMeta {
+              string symbol = 1;
+              double multiplier = 2;
+            }
+
+            extend google.protobuf.EnumValueOptions {
+              optional UnitMeta unit_meta = 50001;
+            }
+
+            enum Unit {
+              KM = 0 [(unit_meta) = { symbol: "km", multiplier: 1.0 }];
+              MILE = 1 [(unit_meta) = { symbol: "mi", multiplier: 0.621371 }];
+            }
+            """,
+        )
+
+        val enum = ProtoSchemaReader(tmp).read().single()
+        val symbol = enum.metaProperties.single { it.name == "symbol" }
+        val multiplier = enum.metaProperties.single { it.name == "multiplier" }
+
+        assertEquals(KotlinScalar.STRING, symbol.type)
+        assertEquals(KotlinScalar.DOUBLE, multiplier.type)
+        assertEquals(listOf("KM", "MILE"), symbol.values.map { it.constantName })
+        assertEquals(listOf("km", "mi"), symbol.values.map { it.rawValue })
+    }
+
+    @Test
+    fun `enum without any meta option yields no metadata properties`(@TempDir tmp: File) {
+        ProtoFixtures.write(
+            tmp, "sample.proto",
+            """
+            syntax = "proto3";
+            package ta;
+            enum Plain { ONE = 0; TWO = 1; }
+            """,
+        )
+
+        assertTrue(ProtoSchemaReader(tmp).read().single().metaProperties.isEmpty())
+    }
 }
