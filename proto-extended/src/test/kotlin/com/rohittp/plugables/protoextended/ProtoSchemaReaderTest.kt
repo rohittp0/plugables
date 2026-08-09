@@ -134,8 +134,11 @@ class ProtoSchemaReaderTest {
 
     @Test
     fun `result is sorted by qualified name across files`(@TempDir tmp: File) {
+        // Fixture filenames deliberately run counter to the expected enum order:
+        // okio's FileSystem.list() hands SchemaLoader its entries already path-sorted,
+        // so naming these alpha/zebra would let this test pass with no sort at all.
         ProtoFixtures.write(
-            tmp, "zebra.proto",
+            tmp, "aaa.proto",
             """
             syntax = "proto3";
             package ta;
@@ -143,7 +146,7 @@ class ProtoSchemaReaderTest {
             """,
         )
         ProtoFixtures.write(
-            tmp, "alpha.proto",
+            tmp, "zzz.proto",
             """
             syntax = "proto3";
             package ta;
