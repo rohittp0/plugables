@@ -82,16 +82,32 @@ class ProtoExtendedPlugin : Plugin<Project> {
             project.plugins.withId(androidPluginId) {
                 val components = project.extensions.getByType(AndroidComponentsExtension::class.java)
                 components.onVariants { variant ->
-                    // Only claim wiring where it actually happened: an Android module with
-                    // no Kotlin plugin has `variant.sources.kotlin == null`, and a KMP module
-                    // that also applies an Android plugin must not have this branch mask the
-                    // `androidMain`-not-yet-created gap the block above is there to catch.
-                    variant.sources.kotlin?.let { sources ->
-                        sources.addGeneratedSourceDirectory(metadataTask, GenerateProtoMetadataTask::outputDir)
-                        sources.addGeneratedSourceDirectory(resourcesTask, GenerateProtoAndroidResourcesTask::outputDir)
-                        metadataWired = true
-                        resourcesWired = true
-                    }
+                    // `onVariants` runs after script evaluation, so plugin-presence checks here
+                    // are reliable regardless of the order plugins were declared in — unlike an
+                    // eager check in `apply()`, which could run before a Kotlin plugin applied
+                    // later in the same `plugins { }` block.
+                    //
+                    // Skip entirely under Kotlin Multiplatform: on a classic KMP +
+                    // `com.android.library` module, the `androidTarget()` source-set branch
+                    // above already wires both tasks via `androidMain`. Without this guard this
+                    // branch would fire too and wire `generateProtoMetadata` twice, risking a
+                    // `Redeclaration` error — `variant.sources.kotlin` is a non-nullable field in
+                    // AGP (confirmed by decompiling `SourcesImpl` in 8.6.1 and 9.2.0); it is
+                    // declared nullable in the public interface only for source compatibility and
+                    // is never actually null, so it cannot be relied on to signal a KMP module.
+                    if (project.plugins.hasPlugin("org.jetbrains.kotlin.multiplatform")) return@onVariants
+
+                    // Only claim wiring where the generated Kotlin will genuinely be compiled: an
+                    // Android module with no Kotlin plugin has `variant.sources.kotlin` populated
+                    // regardless (see above), so without this check the diagnostic below could
+                    // never fire for that module even though nothing consumes the source dir.
+                    if (!project.plugins.hasPlugin("org.jetbrains.kotlin.android")) return@onVariants
+
+                    val sources = variant.sources.kotlin ?: return@onVariants
+                    sources.addGeneratedSourceDirectory(metadataTask, GenerateProtoMetadataTask::outputDir)
+                    sources.addGeneratedSourceDirectory(resourcesTask, GenerateProtoAndroidResourcesTask::outputDir)
+                    metadataWired = true
+                    resourcesWired = true
                 }
             }
         }
@@ -102,6 +118,8 @@ class ProtoExtendedPlugin : Plugin<Project> {
         project.afterEvaluate {
             warnIfUnwired(project, "metadata", extension.metadata, metadataWired, metadataTask)
             warnIfUnwired(project, "androidResources", extension.androidResources, resourcesWired, resourcesTask)
+            warnIfProtoDirMissing(project, "metadata", extension.metadata)
+            warnIfProtoDirMissing(project, "androidResources", extension.androidResources)
         }
     }
 
@@ -114,12 +132,27 @@ class ProtoExtendedPlugin : Plugin<Project> {
     ) {
         if (wired || !spec.protoDir.isPresent) return
         project.logger.warn(
-            "w: protoExtended { $blockName { … } } is configured, but no Kotlin Multiplatform, " +
-                "Kotlin JVM or Android plugin was found to wire it into. Generated sources in " +
+            "w: protoExtended { $blockName { … } } is configured, but nothing wired it into a " +
+                "source set. Generated sources in " +
                 "${spec.outputDir.get().asFile.relativeTo(project.projectDir)} are not on any " +
                 "source set. Add them manually with " +
                 "kotlin.srcDir(tasks.named(\"${task.name}\")) if that is intentional.",
         )
+    }
+
+    /**
+     * Independent of [warnIfUnwired]: a mistyped [ProtoSpec.protoDir] resolves to an empty
+     * file tree, which `@SkipWhenEmpty` treats as `NO-SOURCE` — a successful build having
+     * generated nothing, with wiring reported as fine because it genuinely is. This is the
+     * other half of the "never fail silently" premise: it fires even when wiring succeeded.
+     */
+    private fun warnIfProtoDirMissing(project: Project, blockName: String, spec: ProtoSpec) {
+        if (spec.protoDir.isPresent && !spec.protoDir.get().asFile.isDirectory) {
+            project.logger.warn(
+                "w: protoExtended { $blockName { protoDir … } } points at " +
+                    "${spec.protoDir.get().asFile}, which does not exist. Nothing will be generated.",
+            )
+        }
     }
 
     /**

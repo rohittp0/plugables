@@ -261,7 +261,7 @@ genuinely-set `0`. That is a silent wrong-value bug, so it now fails instead.
 ```
 > Task :shared:generateProtoMetadata FAILED
 
-Enum `AspectRatio` declares (aspect_ratio_meta) on 2 of 3 constants. Missing on:
+Enum `ta.AspectRatio` declares (aspect_ratio_meta) on 2 of 3 constants. Missing on:
   - RATIO_16_9
 
 Every constant must set the option, or none.
@@ -272,8 +272,10 @@ Rules:
 1. **All-or-nothing option presence** — if any constant of an enum carries the
    option, all constants must.
 2. **All-or-nothing field presence** — a field set on some constants but not
-   others fails. A field set on *no* constant is simply not generated (existing
-   behaviour, and correct — nobody consumes it).
+   others fails. A field set on *no* constant is not generated, *provided its
+   type is one Rule 4 supports* — type-checking runs unconditionally on every
+   declared field before presence is counted, so an unsupported-typed field
+   still fails the build even when no constant sets it.
 3. **Reserved names** — a meta field named `name` or `ordinal` (Kotlin `Enum`
    members) or `value` (Wire's `WireEnum.value`), or two different meta messages
    contributing the same field name to the same enum.
@@ -341,8 +343,8 @@ So the failure mode is fixed instead. Each `plugins.withId` branch flips a `wire
 flag; if a block was configured and nothing wired it, the plugin warns:
 
 ```
-w: protoExtended { metadata { … } } is configured, but no Kotlin Multiplatform,
-   Kotlin JVM or Android plugin was found to wire it into. Generated sources in
+w: protoExtended { metadata { … } } is configured, but nothing wired it into
+   a source set. Generated sources in
    build/generated/source/protoExtended/metadata are not on any source set.
 ```
 

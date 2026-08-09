@@ -14,7 +14,15 @@ abstract class ProtoSpec {
     /** Package of the generated file. */
     abstract val basePackage: Property<String>
 
-    /** Defaults to `build/generated/source/protoExtended/<block>`; rarely overridden. */
+    /**
+     * Defaults to `build/generated/source/protoExtended/<block>`; rarely overridden.
+     *
+     * **Warning:** the generating task deletes this directory recursively before every
+     * write (so a stale file from a previous `basePackage` never lingers as compiled
+     * source). It must therefore point at a directory owned exclusively by that task —
+     * never a directory containing hand-written sources, such as `src/main/kotlin`.
+     * Pointing it there will delete those sources.
+     */
     abstract val outputDir: DirectoryProperty
 }
 

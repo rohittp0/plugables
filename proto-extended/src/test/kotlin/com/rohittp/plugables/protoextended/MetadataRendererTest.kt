@@ -157,4 +157,39 @@ class MetadataRendererTest {
         assertContains(error.message!!, "not-a-number")
         assertContains(error.message!!, "Int")
     }
+
+    private fun intEnum(rawValue: String) = ProtoEnumInfo(
+        qualifiedName = "ta.Sample",
+        kotlinRef = "Sample",
+        kotlinImport = "com.example.Sample",
+        constantNames = listOf("ONE"),
+        metaProperties = listOf(
+            MetaProperty("i", KotlinScalar.INT, listOf(ConstantValue("ONE", rawValue))),
+        ),
+        resourceFlags = ResourceFlags(),
+    )
+
+    @Test
+    fun `decimal-looking whole number still renders as an Int`() {
+        val out = MetadataRenderer.render("com.example.generated", listOf(intEnum("1080.0")))
+        assertContains(out, "Sample.ONE -> 1080")
+    }
+
+    @Test
+    fun `fractional Int value throws rather than truncating`() {
+        val error = assertFailsWith<ProtoSchemaException> {
+            MetadataRenderer.render("com.example.generated", listOf(intEnum("1.5")))
+        }
+        assertContains(error.message!!, "1.5")
+        assertContains(error.message!!, "Int")
+    }
+
+    @Test
+    fun `out-of-range Int value throws rather than saturating`() {
+        val error = assertFailsWith<ProtoSchemaException> {
+            MetadataRenderer.render("com.example.generated", listOf(intEnum("4294967295")))
+        }
+        assertContains(error.message!!, "4294967295")
+        assertContains(error.message!!, "Int")
+    }
 }

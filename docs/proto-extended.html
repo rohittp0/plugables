@@ -555,8 +555,8 @@
           the build still succeeds — the task writes a valid file, but nothing
           compiles it. proto-extended warns instead of failing silently:
         </p>
-        <pre><code><span class="cm">w: protoExtended { metadata { … } } is configured, but no Kotlin Multiplatform,
-   Kotlin JVM or Android plugin was found to wire it into. Generated sources in
+        <pre><code><span class="cm">w: protoExtended { metadata { … } } is configured, but nothing wired it into
+   a source set. Generated sources in
    build/generated/source/protoExtended/metadata are not on any source set.
    Add them manually with kotlin.srcDir(tasks.named("generateProtoMetadata"))
    if that is intentional.</span></code></pre>
@@ -588,7 +588,9 @@
         <li>
           <strong>All constants set each field, or none.</strong> Same hazard,
           checked per field rather than per option, since one meta message can
-          declare several fields.
+          declare several fields. This check runs after the type check below —
+          a field of an unsupported type still fails the build even when no
+          constant sets it.
         </li>
         <li>
           <strong>No field named <code>name</code>, <code>ordinal</code>, or
@@ -619,7 +621,7 @@
 
       <pre><code><span class="cm">&gt; Task :shared:generateProtoMetadata FAILED
 
-Enum `AspectRatio` declares (ratio_meta) on 1 of 2 constants. Missing on:
+Enum `ta.AspectRatio` declares (ratio_meta) on 1 of 2 constants. Missing on:
   - RATIO_16_9
 
 Every constant must set the option, or none.</span></code></pre>
@@ -635,6 +637,7 @@ Every constant must set the option, or none.</span></code></pre>
         <li><strong>No resource-existence validation.</strong> A missing <code>R.string.foo</code> is already a compile error; catching it here would only move the error a few seconds earlier.</li>
         <li><strong>No iOS or Linux output.</strong> Wire already exposes <code>Enum.name</code> to every KMP target — nothing needs generating there.</li>
         <li><strong>No enum- or message-typed metadata fields.</strong> Only the eight scalar types listed under <a href="#metadata">Metadata generation</a> are read.</li>
+        <li><strong>No <code>oneof</code> metadata fields.</strong> Unlike <code>bytes</code>, <code>repeated</code> and <code>map</code> fields, which fail the build, a <code>oneof</code> inside a meta message is silently excluded by Wire's <code>declaredFields</code> — it generates nothing and reports nothing.</li>
         <li><strong>No configurable property names.</strong> Generated accessors are always named for the field (<code>width</code>) or the fixed pair (<code>displayName</code>, <code>icon</code>).</li>
         <li><strong>Wire Kotlin codegen is assumed.</strong> protobuf-lite and pbandk generate different class names and are out of scope.</li>
         <li><strong>Wire is assumed to generate every enum on the proto path.</strong> An enum dropped via Wire's <code>prune</code> or <code>exclude</code> still gets extension properties generated against a class that no longer exists — both generators read <code>.proto</code> sources directly and never inspect Wire's output.</li>

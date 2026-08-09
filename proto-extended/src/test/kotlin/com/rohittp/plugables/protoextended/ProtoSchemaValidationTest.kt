@@ -5,6 +5,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 
 class ProtoSchemaValidationTest {
 
@@ -84,7 +85,7 @@ class ProtoSchemaValidationTest {
         val enum = ProtoSchemaReader(tmp).read().single()
 
         assertContains(enum.metaProperties.map { it.name }, "width")
-        kotlin.test.assertFalse(enum.metaProperties.any { it.name == "height" })
+        assertFalse(enum.metaProperties.any { it.name == "height" })
     }
 
     @Test

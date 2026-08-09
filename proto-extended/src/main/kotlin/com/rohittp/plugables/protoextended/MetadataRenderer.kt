@@ -43,8 +43,10 @@ object MetadataRenderer {
 
     /**
      * Converts a raw proto option value into a Kotlin literal. Int tolerates a
-     * decimal-looking source value (`"1080.0"`), which protoc permits for integer
-     * option fields.
+     * decimal-looking *whole-number* source value (`"1080.0"`), which protoc permits for
+     * integer option fields — but only when it is exactly representable as an `Int`:
+     * a fractional value (`"1.5"`) or one outside `Int` range (`"4294967295"`, a legal
+     * `uint32`) throws rather than being silently truncated or saturated.
      *
      * Never defaults a value that fails to parse — a defaulted `0` would be
      * indistinguishable from a genuinely-set `0`. Throws instead.
@@ -54,17 +56,32 @@ object MetadataRenderer {
             KotlinScalar.STRING -> "\"${raw.escapeKotlin()}\""
             KotlinScalar.DOUBLE -> raw.toDoubleOrNull()?.toString()
             KotlinScalar.FLOAT -> raw.toFloatOrNull()?.let { "${it}f" }
-            KotlinScalar.INT -> raw.toDoubleOrNull()?.toInt()?.toString()
+            KotlinScalar.INT -> raw.toExactIntOrNull()?.toString()
             KotlinScalar.LONG -> raw.toLongOrNull()?.let { "${it}L" }
             KotlinScalar.BOOLEAN -> raw.toBooleanStrictOrNull()?.toString()
         } ?: throw ProtoSchemaException(
-            "Cannot render `$raw` as ${type.kotlinName}. This is a bug in " +
-                "proto-extended's reader, not in your proto.",
+            "Value `$raw` could not be represented as ${type.kotlinName}: it is out of " +
+                "range, or not a valid ${type.kotlinName} literal.",
         )
+
+    /**
+     * An exact `Int` value, whether [this] is an integer literal or a decimal-looking
+     * whole number in `Int` range (`"1080.0"`). Never truncates a fraction and never
+     * saturates an out-of-range value — both fall through to `null`, which [literal]
+     * turns into a thrown [ProtoSchemaException] rather than a silently wrong value.
+     */
+    private fun String.toExactIntOrNull(): Int? =
+        toIntOrNull() ?: toDoubleOrNull()
+            ?.takeIf { it == kotlin.math.floor(it) && it in INT_RANGE_AS_DOUBLE }
+            ?.toInt()
 
     private fun String.escapeKotlin(): String = this
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
         .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
         .replace("$", "\\$")
+
+    private val INT_RANGE_AS_DOUBLE = Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble()
 }

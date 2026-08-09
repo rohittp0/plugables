@@ -94,4 +94,7 @@ message (`Distance.Unit`) and imports that message, never the nested enum itself
   all must, and every field it uses must be set on all of them.
 - **Scalar meta fields only.** `bytes`, `repeated`, `map`, message- and enum-typed meta fields are a
   build error rather than being silently stringified.
+- **`oneof` meta fields are silently dropped.** `MessageType.declaredFields` excludes `oneof` members,
+  so a `oneof` inside a meta message generates nothing and reports nothing — unlike the other
+  unsupported shapes above, this one does not fail the build.
 - **Wire Kotlin codegen is assumed.** protobuf-lite and pbandk produce different class names.
