@@ -51,22 +51,29 @@ class ProtoExtendedPlugin : Plugin<Project> {
         var metadataWired = false
         var resourcesWired = false
 
+        // `.matching { }.configureEach { }` rather than a one-shot `findByName` lookup:
+        // `plugins.withId("org.jetbrains.kotlin.multiplatform")` fires the instant KMP is
+        // applied — during the consumer's `plugins { }` block — strictly before the script
+        // body's `kotlin { androidTarget() }` runs and creates `androidMain`. A point-in-time
+        // `findByName("androidMain")` would always see it as absent. A live view configures
+        // the source set whenever it is created, regardless of order. Applied uniformly to
+        // all three lookups so none of them is order-dependent.
         project.plugins.withId("org.jetbrains.kotlin.multiplatform") {
-            val kotlin = project.extensions.getByType(KotlinMultiplatformExtension::class.java)
-            kotlin.sourceSets.findByName("commonMain")?.let {
-                it.kotlin.srcDir(metadataTask)
+            val kotlinExtension = project.extensions.getByType(KotlinMultiplatformExtension::class.java)
+            kotlinExtension.sourceSets.matching { it.name == "commonMain" }.configureEach {
+                this.kotlin.srcDir(metadataTask)
                 metadataWired = true
             }
-            kotlin.sourceSets.findByName("androidMain")?.let {
-                it.kotlin.srcDir(resourcesTask)
+            kotlinExtension.sourceSets.matching { it.name == "androidMain" }.configureEach {
+                this.kotlin.srcDir(resourcesTask)
                 resourcesWired = true
             }
         }
 
         project.plugins.withId("org.jetbrains.kotlin.jvm") {
-            val kotlin = project.extensions.getByType(KotlinJvmProjectExtension::class.java)
-            kotlin.sourceSets.findByName("main")?.let {
-                it.kotlin.srcDir(metadataTask)
+            val kotlinExtension = project.extensions.getByType(KotlinJvmProjectExtension::class.java)
+            kotlinExtension.sourceSets.matching { it.name == "main" }.configureEach {
+                this.kotlin.srcDir(metadataTask)
                 metadataWired = true
             }
         }
@@ -75,17 +82,17 @@ class ProtoExtendedPlugin : Plugin<Project> {
             project.plugins.withId(androidPluginId) {
                 val components = project.extensions.getByType(AndroidComponentsExtension::class.java)
                 components.onVariants { variant ->
-                    variant.sources.kotlin?.addGeneratedSourceDirectory(
-                        metadataTask,
-                        GenerateProtoMetadataTask::outputDir,
-                    )
-                    variant.sources.kotlin?.addGeneratedSourceDirectory(
-                        resourcesTask,
-                        GenerateProtoAndroidResourcesTask::outputDir,
-                    )
+                    // Only claim wiring where it actually happened: an Android module with
+                    // no Kotlin plugin has `variant.sources.kotlin == null`, and a KMP module
+                    // that also applies an Android plugin must not have this branch mask the
+                    // `androidMain`-not-yet-created gap the block above is there to catch.
+                    variant.sources.kotlin?.let { sources ->
+                        sources.addGeneratedSourceDirectory(metadataTask, GenerateProtoMetadataTask::outputDir)
+                        sources.addGeneratedSourceDirectory(resourcesTask, GenerateProtoAndroidResourcesTask::outputDir)
+                        metadataWired = true
+                        resourcesWired = true
+                    }
                 }
-                metadataWired = true
-                resourcesWired = true
             }
         }
 
