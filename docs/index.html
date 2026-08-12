@@ -95,12 +95,12 @@
   <!-- ─── Repository Setup ───────────────────────────────────── -->
   <section class="section">
     <p class="section-label">Getting Started</p>
-    <h2 style="margin-top:0">Apply a plugin</h2>
+    <h2 style="margin-top:0">Common setup (required)</h2>
     <p>
       All plugins are published to the public
       <a href="https://maven.rohittp.com" target="_blank" rel="noopener noreferrer">Plugables Maven repository</a>.
-      Add it to your plugin repositories in <code>settings.gradle.kts</code>,
-      then apply the plugin in your module:
+      Add this repository once to the root <code>settings.gradle.kts</code> of every project
+      that uses a Plugables plugin. This shared setup is required before applying any plugin:
     </p>
 
     <div class="code-wrap">
@@ -113,6 +113,12 @@
     <span class="op">}</span>
 <span class="op">}</span></code></pre>
     </div>
+
+    <h3>Apply a plugin</h3>
+    <p>
+      After the common repository setup, apply whichever plugin you need in the relevant
+      module's <code>build.gradle.kts</code>:
+    </p>
 
     <div class="code-wrap">
       <span class="code-lang">build.gradle.kts</span>
