@@ -184,9 +184,10 @@ Plugin release versions must not be written directly into HTML. Use a
 <script src="versions.js" defer></script>
 ```
 
-The publish workflow regenerates `versions.json` from each artifact's public R2
-`maven-metadata.xml` after every successful release. `versions.js` applies that
-same manifest to badges, installation snippets, and footers.
+`versions.js` reads each artifact's `<release>` directly from its public R2
+`maven-metadata.xml`, then applies it to badges, installation snippets, and
+footers. The R2 bucket must allow cross-origin `GET` requests from
+`https://rohittp.com`; publishing a release needs no documentation commit.
 
 ### Feature grid
 Use for 3–6 short feature descriptions. Responsive grid, auto-fit.

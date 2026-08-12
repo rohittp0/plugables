@@ -133,32 +133,3 @@ jobs:
             "${base}/${{ matrix.plugin }}-${version}.pom"
           curl --fail --silent --show-error --retry 12 --retry-delay 5 --head \
             "${marker}/com.rohittp.plugables.${{ matrix.plugin }}.gradle.plugin-${version}.pom"
-
-  sync-doc-versions:
-    name: Sync published versions to docs
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: main
-
-      - name: Generate version manifest from R2
-        env:
-          R2_PUBLIC_URL: ${{ vars.R2_PUBLIC_URL }}
-        run: .github/scripts/sync-doc-versions.sh
-
-      - name: Commit changed versions
-        run: |
-          if git diff --quiet -- docs/versions.json; then
-            echo "Published versions are already current."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/versions.json
-          git commit -m "docs: sync published plugin versions"
-          git push origin HEAD:main
