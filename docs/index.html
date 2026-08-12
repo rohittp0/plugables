@@ -118,7 +118,7 @@
       <pre><code><span class="fn">plugins</span> <span class="op">{</span>
     <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.viewmodel-stub"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.1"</span>
     <span class="cm">// or</span>
-    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.typed-events"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.0.0"</span>
+    <span class="k">id</span><span class="op">(</span><span class="st">"com.rohittp.plugables.typed-events"</span><span class="op">)</span> <span class="k">version</span> <span class="st">"1.1.0"</span>
 <span class="op">}</span></code></pre>
     </div>
 
@@ -164,13 +164,13 @@
         </div>
         <p class="card-desc">
           Reads an analytics event schema from a YAML file and generates
-          typed top-level Kotlin functions, one per event. Register a single
-          handler at startup to connect any analytics backend — no
-          inheritance required.
+          typed shared Kotlin functions, a native sink, a Swift-callable
+          facade, and a parity-test schema. Register each host's backend once;
+          Android and iOS keep one event catalogue.
         </p>
         <div class="card-tags">
-          <span class="badge badge-version">v1.0.0</span>
-          <span class="badge badge-platform">Android</span>
+          <span class="badge badge-version">v1.1.0</span>
+          <span class="badge badge-platform">Multiplatform</span>
           <span class="badge badge-kotlin">Kotlin</span>
         </div>
       </a>
@@ -236,13 +236,12 @@
         </div>
         <p class="card-desc">
           Reads custom protobuf enum options and generates typed Kotlin
-          metadata properties for <strong>commonMain</strong>, plus
-          <code>@StringRes</code> / <code>@DrawableRes</code> accessors for
-          the Android module that owns <code>R</code>. Two independent
-          generators, five build-time validation rules.
+          metadata properties for <strong>commonMain</strong>, plus Compose
+          <code>StringResource</code> / <code>DrawableResource</code> accessors
+          shared by Android and iOS. Base resource drift fails generation.
         </p>
         <div class="card-tags">
-          <span class="badge badge-version">v1.0.0</span>
+          <span class="badge badge-version">v2.0.0</span>
           <span class="badge badge-platform">Multiplatform</span>
           <span class="badge badge-kotlin">Kotlin</span>
         </div>
