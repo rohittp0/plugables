@@ -5,7 +5,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-version = "1.0.0"
+version = "2.0.0"
 
 kotlin {
     compilerOptions {
@@ -20,7 +20,6 @@ java {
 
 dependencies {
     compileOnly("com.android.tools.build:gradle:9.2.0")
-    compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.0")
     implementation("com.squareup.wire:wire-schema:6.4.5")
     testImplementation(kotlin("test"))
     testImplementation(gradleTestKit())
@@ -31,7 +30,7 @@ gradlePlugin {
         create("protoExtended") {
             id = "com.rohittp.plugables.proto-extended"
             displayName = "ProtoExtended"
-            description = "Generates Kotlin extension properties from proto enums — multiplatform metadata properties plus Android string/drawable accessors."
+            description = "Generates common Kotlin metadata and Compose Multiplatform resource properties from proto enums."
             tags = listOf("kotlin", "kotlin-multiplatform", "protobuf", "wire", "codegen")
             implementationClass = "com.rohittp.plugables.protoextended.ProtoExtendedPlugin"
         }
@@ -44,7 +43,7 @@ mavenPublishing {
 
     pom {
         name.set("ProtoExtended")
-        description.set("Generates Kotlin extension properties from proto enums — multiplatform metadata properties plus Android string/drawable accessors.")
+        description.set("Generates common Kotlin metadata and Compose Multiplatform resource properties from proto enums.")
         url.set("https://github.com/rohittp0/plugables")
         licenses {
             license {

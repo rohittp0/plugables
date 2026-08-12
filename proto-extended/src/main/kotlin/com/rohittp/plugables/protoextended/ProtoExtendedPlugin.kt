@@ -1,11 +1,13 @@
 package com.rohittp.plugables.protoextended
 
 import com.android.build.api.variant.AndroidComponentsExtension
+import org.gradle.api.Action
+import org.gradle.api.Named
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.file.SourceDirectorySet
 import org.gradle.api.tasks.TaskProvider
-import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
-import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 
 class ProtoExtendedPlugin : Plugin<Project> {
 
@@ -21,8 +23,11 @@ class ProtoExtendedPlugin : Plugin<Project> {
         extension.metadata.outputDir.convention(
             project.layout.buildDirectory.dir("generated/source/protoExtended/metadata"),
         )
-        extension.androidResources.outputDir.convention(
-            project.layout.buildDirectory.dir("generated/source/protoExtended/androidResources"),
+        extension.resources.outputDir.convention(
+            project.layout.buildDirectory.dir("generated/source/protoExtended/resources"),
+        )
+        extension.resources.composeResourcesDir.convention(
+            project.layout.projectDirectory.dir("src/commonMain/composeResources"),
         )
 
         val metadataTask = project.tasks.register(
@@ -37,15 +42,18 @@ class ProtoExtendedPlugin : Plugin<Project> {
         }
 
         val resourcesTask = project.tasks.register(
-            "generateProtoAndroidResources",
-            GenerateProtoAndroidResourcesTask::class.java,
+            "generateProtoResources",
+            GenerateProtoResourcesTask::class.java,
         ) {
-            description = "Generates Android string/drawable accessors from proto enum resource options."
-            protoDir.set(extension.androidResources.protoDir)
-            protoFiles.from(protoFilesOf(project, extension.androidResources))
-            basePackage.set(extension.androidResources.basePackage)
-            rPackage.set(extension.androidResources.rPackage)
-            outputDir.set(extension.androidResources.outputDir)
+            description = "Generates common Compose resource accessors from proto enum options."
+            protoDir.set(extension.resources.protoDir)
+            protoFiles.from(protoFilesOf(project, extension.resources))
+            basePackage.set(extension.resources.basePackage)
+            composeResourcesDir.set(extension.resources.composeResourcesDir)
+            composeResourceFiles.from(
+                extension.resources.composeResourcesDir.map { it.asFileTree },
+            )
+            outputDir.set(extension.resources.outputDir)
         }
 
         var metadataWired = false
@@ -59,21 +67,16 @@ class ProtoExtendedPlugin : Plugin<Project> {
         // the source set whenever it is created, regardless of order. Applied uniformly to
         // all three lookups so none of them is order-dependent.
         project.plugins.withId("org.jetbrains.kotlin.multiplatform") {
-            val kotlinExtension = project.extensions.getByType(KotlinMultiplatformExtension::class.java)
-            kotlinExtension.sourceSets.matching { it.name == "commonMain" }.configureEach {
-                this.kotlin.srcDir(metadataTask)
+            wireKotlinSourceSet(project, "commonMain", metadataTask) {
                 metadataWired = true
             }
-            kotlinExtension.sourceSets.matching { it.name == "androidMain" }.configureEach {
-                this.kotlin.srcDir(resourcesTask)
+            wireKotlinSourceSet(project, "commonMain", resourcesTask) {
                 resourcesWired = true
             }
         }
 
         project.plugins.withId("org.jetbrains.kotlin.jvm") {
-            val kotlinExtension = project.extensions.getByType(KotlinJvmProjectExtension::class.java)
-            kotlinExtension.sourceSets.matching { it.name == "main" }.configureEach {
-                this.kotlin.srcDir(metadataTask)
+            wireKotlinSourceSet(project, "main", metadataTask) {
                 metadataWired = true
             }
         }
@@ -105,9 +108,7 @@ class ProtoExtendedPlugin : Plugin<Project> {
 
                     val sources = variant.sources.kotlin ?: return@onVariants
                     sources.addGeneratedSourceDirectory(metadataTask, GenerateProtoMetadataTask::outputDir)
-                    sources.addGeneratedSourceDirectory(resourcesTask, GenerateProtoAndroidResourcesTask::outputDir)
                     metadataWired = true
-                    resourcesWired = true
                 }
             }
         }
@@ -117,9 +118,9 @@ class ProtoExtendedPlugin : Plugin<Project> {
         // successful generate task whose output nothing ever compiles.
         project.afterEvaluate {
             warnIfUnwired(project, "metadata", extension.metadata, metadataWired, metadataTask)
-            warnIfUnwired(project, "androidResources", extension.androidResources, resourcesWired, resourcesTask)
+            warnIfUnwired(project, "resources", extension.resources, resourcesWired, resourcesTask)
             warnIfProtoDirMissing(project, "metadata", extension.metadata)
-            warnIfProtoDirMissing(project, "androidResources", extension.androidResources)
+            warnIfProtoDirMissing(project, "resources", extension.resources)
         }
     }
 
@@ -170,4 +171,35 @@ class ProtoExtendedPlugin : Plugin<Project> {
         spec.protoDir
             .map { dir -> dir.asFileTree.matching { include("**/*.proto") } }
             .orElse(project.files().asFileTree)
+
+    /**
+     * Wires a generated directory without placing a concrete Kotlin Gradle plugin implementation
+     * class on this plugin's runtime classpath. Gradle TestKit and included builds isolate plugin
+     * classloaders; depending on `KotlinMultiplatformExtension` directly makes an otherwise valid
+     * consumer fail with `NoClassDefFoundError`. The `kotlin` extension's public shape has exposed
+     * `sourceSets` and each source set's `kotlin: SourceDirectorySet` across the supported KGP
+     * versions, while all types used after the reflective boundary are Gradle API types.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun wireKotlinSourceSet(
+        project: Project,
+        sourceSetName: String,
+        task: TaskProvider<*>,
+        onWired: () -> Unit,
+    ) {
+        val kotlinExtension = project.extensions.getByName("kotlin")
+        val sourceSetsGetter = kotlinExtension.javaClass.methods.singleOrNull {
+            it.name == "getSourceSets" && it.parameterCount == 0
+        } ?: error("Kotlin extension does not expose sourceSets")
+        val sourceSets = sourceSetsGetter.invoke(kotlinExtension) as NamedDomainObjectContainer<Any>
+        sourceSets.matching { (it as Named).name == sourceSetName }.configureEach(Action<Any> {
+            val sourceSet = this
+            val kotlinGetter = sourceSet.javaClass.methods.singleOrNull {
+                it.name == "getKotlin" && it.parameterCount == 0
+            } ?: error("Kotlin source set `$sourceSetName` does not expose its Kotlin sources")
+            val kotlinSources = kotlinGetter.invoke(sourceSet) as SourceDirectorySet
+            kotlinSources.srcDir(task)
+            onWired()
+        })
+    }
 }

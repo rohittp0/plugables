@@ -29,19 +29,25 @@ abstract class ProtoSpec {
 /** Pure-Kotlin metadata extension properties. Safe for `commonMain`. */
 abstract class MetadataSpec : ProtoSpec()
 
-/** Android `R`-bound accessors. Must be applied in the module that owns the resources. */
-abstract class AndroidResourcesSpec : ProtoSpec() {
-    /** Package holding the generated `R` class, e.g. `com.travelanimator.routemap`. */
-    abstract val rPackage: Property<String>
+/** Compose Multiplatform `Res`-bound accessors. Safe for `commonMain`. */
+abstract class ResourcesSpec : ProtoSpec() {
+    /**
+     * Root containing `values/strings.xml` and the base `drawable` directory.
+     *
+     * The generator validates every opted-in enum constant against the base resources so a
+     * rename fails at generation time with the proto enum and expected resource name, instead
+     * of surfacing later as an opaque unresolved `Res` accessor.
+     */
+    abstract val composeResourcesDir: DirectoryProperty
 }
 
 abstract class ProtoExtendedExtension @Inject constructor(objects: ObjectFactory) {
 
     val metadata: MetadataSpec = objects.newInstance(MetadataSpec::class.java)
 
-    val androidResources: AndroidResourcesSpec = objects.newInstance(AndroidResourcesSpec::class.java)
+    val resources: ResourcesSpec = objects.newInstance(ResourcesSpec::class.java)
 
     fun metadata(action: Action<MetadataSpec>) = action.execute(metadata)
 
-    fun androidResources(action: Action<AndroidResourcesSpec>) = action.execute(androidResources)
+    fun resources(action: Action<ResourcesSpec>) = action.execute(resources)
 }

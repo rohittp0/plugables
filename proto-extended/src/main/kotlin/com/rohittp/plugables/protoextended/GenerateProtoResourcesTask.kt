@@ -15,17 +15,11 @@ import org.gradle.api.tasks.SkipWhenEmpty
 import org.gradle.api.tasks.TaskAction
 
 /**
- * Generates `@get:StringRes val X.displayName` / `@get:DrawableRes val X.icon`
- * for enums carrying the `(gen.resources)` option.
- *
- * Must run in the module that owns the resources — a KMP library cannot see the
- * consuming app's `R`.
- *
- * `@CacheableTask` follows this repo's convention for deterministic generator tasks;
- * Gradle's `validatePlugins` task also requires every task type to declare a caching stance.
+ * Generates common `StringResource` and `DrawableResource` enum properties for enums carrying
+ * `(gen.resources)`. The output package must match Compose's generated `Res` package.
  */
 @CacheableTask
-abstract class GenerateProtoAndroidResourcesTask : DefaultTask() {
+abstract class GenerateProtoResourcesTask : DefaultTask() {
 
     @get:Internal
     abstract val protoDir: DirectoryProperty
@@ -38,8 +32,12 @@ abstract class GenerateProtoAndroidResourcesTask : DefaultTask() {
     @get:Input
     abstract val basePackage: Property<String>
 
-    @get:Input
-    abstract val rPackage: Property<String>
+    @get:Internal
+    abstract val composeResourcesDir: DirectoryProperty
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val composeResourceFiles: ConfigurableFileCollection
 
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
@@ -47,7 +45,8 @@ abstract class GenerateProtoAndroidResourcesTask : DefaultTask() {
     @TaskAction
     fun generate() {
         val enums = ProtoSchemaReader(protoDir.get().asFile).read()
-        val source = AndroidResourceRenderer.render(basePackage.get(), rPackage.get(), enums)
+        ComposeResourceValidator.validate(composeResourcesDir.get().asFile, enums)
+        val source = ComposeResourceRenderer.render(basePackage.get(), enums)
         writeGenerated(outputDir.get().asFile, basePackage.get(), "ProtoEnumResources.kt", source)
     }
 }

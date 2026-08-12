@@ -7,7 +7,7 @@ import java.io.File
  *
  * The wipe matters because `basePackage` is an input: changing it would otherwise
  * leave the previous package's file behind as a stale, still-compiled source. Shared by
- * both [GenerateProtoMetadataTask] and [GenerateProtoAndroidResourcesTask].
+ * both [GenerateProtoMetadataTask] and [GenerateProtoResourcesTask].
  */
 internal fun writeGenerated(outputDir: File, basePackage: String, fileName: String, source: String) {
     outputDir.deleteRecursively()
