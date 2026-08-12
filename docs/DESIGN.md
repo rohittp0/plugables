@@ -174,6 +174,20 @@ Three variants: `badge-version`, `badge-platform`, `badge-kotlin`.
 <span class="badge badge-kotlin">Kotlin</span>
 ```
 
+Plugin release versions must not be written directly into HTML. Use a
+`data-plugin-version` node and load `versions.js` on the page:
+
+```html
+<span class="badge badge-version">
+  v<span data-plugin-version="codeview">latest</span>
+</span>
+<script src="versions.js" defer></script>
+```
+
+The publish workflow regenerates `versions.json` from each artifact's public R2
+`maven-metadata.xml` after every successful release. `versions.js` applies that
+same manifest to badges, installation snippets, and footers.
+
 ### Feature grid
 Use for 3–6 short feature descriptions. Responsive grid, auto-fit.
 
