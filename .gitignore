@@ -5,3 +5,4 @@
 local.properties
 AGENTS.md
 **/.kotlin
+scripts/set-r2-github-secrets.sh

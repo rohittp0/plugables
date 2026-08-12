@@ -31,7 +31,7 @@ jobs:
           else
             # Only treat a plugin as changed if its `version = "..."` line was added or removed
             # in this push. Other build-script edits (publishing config, dep tweaks) don't
-            # warrant a publish — Maven Central rejects republishing the same GAV anyway.
+            # warrant a publish — released R2 paths are immutable by policy.
             changed_files=$(git diff --name-only HEAD~1 HEAD 2>/dev/null \
               | grep -E '^[^/]+/build\.gradle\.kts$' || true)
             list=()
@@ -72,11 +72,64 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Build and publish ${{ matrix.plugin }}
-        run: ./gradlew :${{ matrix.plugin }}:build :${{ matrix.plugin }}:publishToMavenCentral
+      - name: Verify publishing credentials
         env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          for name in R2_ENDPOINT R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY SIGNING_KEY SIGNING_KEY_ID SIGNING_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required publishing value: ${name}"
+              exit 1
+            fi
+          done
+
+      - name: Reject an existing release
+        env:
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          version=$(sed -nE 's/^version = "([^"]+)"/\1/p' "${{ matrix.plugin }}/build.gradle.kts")
+          main_key="com/rohittp/plugables/${{ matrix.plugin }}/${version}/${{ matrix.plugin }}-${version}.pom"
+          marker_key="com/rohittp/plugables/${{ matrix.plugin }}/com.rohittp.plugables.${{ matrix.plugin }}.gradle.plugin/${version}/com.rohittp.plugables.${{ matrix.plugin }}.gradle.plugin-${version}.pom"
+          for key in "$main_key" "$marker_key"; do
+            count=$(aws --endpoint-url "$R2_ENDPOINT" s3api list-objects-v2 \
+              --bucket "$R2_BUCKET" --prefix "$key" --max-keys 1 \
+              --query KeyCount --output text)
+            if [[ "$count" != "0" ]]; then
+              echo "::error::Refusing to overwrite existing release object: ${key}"
+              exit 1
+            fi
+          done
+
+      - name: Build and publish ${{ matrix.plugin }}
+        run: ./gradlew :${{ matrix.plugin }}:build :${{ matrix.plugin }}:publishAllPublicationsToR2Repository
+        env:
+          R2_ENDPOINT: ${{ vars.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+
+      - name: Verify public artifacts
+        env:
+          R2_PUBLIC_URL: ${{ vars.R2_PUBLIC_URL }}
+        run: |
+          version=$(sed -nE 's/^version = "([^"]+)"/\1/p' "${{ matrix.plugin }}/build.gradle.kts")
+          base="${R2_PUBLIC_URL}/com/rohittp/plugables/${{ matrix.plugin }}/${version}"
+          marker="${R2_PUBLIC_URL}/com/rohittp/plugables/${{ matrix.plugin }}/com.rohittp.plugables.${{ matrix.plugin }}.gradle.plugin/${version}"
+          curl --fail --silent --show-error --retry 12 --retry-delay 5 --head \
+            "${base}/${{ matrix.plugin }}-${version}.pom"
+          curl --fail --silent --show-error --retry 12 --retry-delay 5 --head \
+            "${marker}/com.rohittp.plugables.${{ matrix.plugin }}.gradle.plugin-${version}.pom"

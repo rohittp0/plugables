@@ -1,7 +1,7 @@
 # Plugables — Gradle Plugins for Android and Kotlin Multiplatform
 
 > Opinionated code-generation Gradle plugins for Android and Kotlin projects,
-> published to the Gradle Plugin Portal.
+> published at https://maven.rohittp.com.
 
 ## Plugins
 
@@ -15,4 +15,4 @@
 ## Source
 
 - [GitHub](https://github.com/rohittp0/plugables)
-- [Gradle Plugin Portal](https://plugins.gradle.org/search?term=com.rohittp.plugables)
+- [Public Maven repository](https://maven.rohittp.com)

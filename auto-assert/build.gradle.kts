@@ -40,7 +40,7 @@ gradlePlugin {
 }
 
 mavenPublishing {
-    // publishToMavenCentral(automaticRelease = true) and signing are configured centrally in
+    // R2 publishing and signing are configured centrally in
     // the root build.gradle.kts `subprojects { }` block.
 
     pom {

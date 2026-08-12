@@ -158,12 +158,13 @@
     <!-- ─── Installation ─────────────────────────────────── -->
     <section id="installation" class="doc-section">
       <h2>Installation</h2>
-      <p>Add Maven Central to your plugin repositories in <code>settings.gradle.kts</code>:</p>
+      <p>Add the Plugables Maven repository to <code>settings.gradle.kts</code>:</p>
 
       <div class="code-wrap">
         <span class="code-lang">settings.gradle.kts</span>
         <pre><code><span class="fn">pluginManagement</span> <span class="op">{</span>
     <span class="fn">repositories</span> <span class="op">{</span>
+        <span class="fn">maven</span><span class="op">(</span><span class="st">"https://maven.rohittp.com"</span><span class="op">)</span>
         <span class="fn">mavenCentral</span><span class="op">()</span>
         <span class="fn">gradlePluginPortal</span><span class="op">()</span>
     <span class="op">}</span>
