@@ -5,7 +5,7 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-version = "1.0.0"
+version = "1.1.0"
 
 kotlin {
     compilerOptions {
@@ -29,8 +29,8 @@ gradlePlugin {
         create("typedEvents") {
             id = "com.rohittp.plugables.typed-events"
             displayName = "TypedEvents"
-            description = "Generates type-safe Kotlin event classes from a YAML schema for Android projects."
-            tags = listOf("android", "kotlin", "events", "codegen")
+            description = "Generates type-safe Kotlin and Kotlin Multiplatform events from a YAML schema."
+            tags = listOf("kmp", "android", "kotlin", "events", "codegen")
             implementationClass = "com.rohittp.plugables.typedevents.TypedEventsPlugin"
         }
     }
@@ -42,7 +42,7 @@ mavenPublishing {
 
     pom {
         name.set("TypedEvents")
-        description.set("Generates type-safe Kotlin event classes from a YAML schema for Android projects.")
+        description.set("Generates type-safe Kotlin and Kotlin Multiplatform events from a YAML schema.")
         url.set("https://github.com/rohittp0/plugables")
         licenses {
             license {

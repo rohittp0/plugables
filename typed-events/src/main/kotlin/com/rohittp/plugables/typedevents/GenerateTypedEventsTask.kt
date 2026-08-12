@@ -41,8 +41,17 @@ abstract class GenerateTypedEventsTask : DefaultTask() {
         File(pkgDir, "AnalyticsEvents.kt").writeText(
             ClassRenderer.renderEventsFile(spec.name, events)
         )
+        File(pkgDir, "AnalyticsEventsFacade.kt").writeText(
+            ClassRenderer.renderFacadeFile(spec.name, events)
+        )
+        File(pkgDir, "AnalyticsEventSchema.kt").writeText(
+            ClassRenderer.renderSchemaFile(spec.name, events)
+        )
 
-        logger.lifecycle("[typed-events] Generated TypedEventHandler and AnalyticsEvents with ${events.size} event(s).")
+        logger.lifecycle(
+            "[typed-events] Generated handler, typed functions, native facade, and schema " +
+                "with ${events.size} event(s).",
+        )
     }
 
     private fun validate(events: List<EventSpec>) {

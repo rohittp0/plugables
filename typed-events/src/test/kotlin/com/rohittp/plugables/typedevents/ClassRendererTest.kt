@@ -16,16 +16,19 @@ class ClassRendererTest {
     }
 
     @Test
-    fun `renderHandlerFile contains internal typedEventHandler variable`() {
+    fun `renderHandlerFile contains common sink boundary`() {
         val output = ClassRenderer.renderHandlerFile()
-        assertContains(output, "internal var typedEventHandler: ((eventName: String, params: Map<String, Any?>) -> Unit)? = null")
+        assertContains(output, "fun interface AnalyticsSink")
+        assertContains(output, "fun capture(eventName: String, properties: Map<String, Any?>)")
+        assertContains(output, "internal var typedEventSink: AnalyticsSink? = null")
+        assertContains(output, "fun registerAnalyticsSink(sink: AnalyticsSink)")
     }
 
     @Test
     fun `renderHandlerFile contains registerTypedEventHandler taking a function`() {
         val output = ClassRenderer.renderHandlerFile()
         assertContains(output, "fun registerTypedEventHandler(handler: (eventName: String, params: Map<String, Any?>) -> Unit)")
-        assertContains(output, "typedEventHandler = handler")
+        assertContains(output, "registerAnalyticsSink(AnalyticsSink(handler))")
     }
 
     @Test
@@ -63,13 +66,13 @@ class ClassRendererTest {
     }
 
     @Test
-    fun `renderEventsFile asserts handler is registered before invoking`() {
+    fun `renderHandlerFile requires a registered sink before invoking`() {
         val events = listOf(
             EventSpec("screen_viewed", "User viewed a screen", "logScreenViewed", emptyMap())
         )
-        val output = ClassRenderer.renderEventsFile("events.yaml", events)
-        assertContains(output, "assert(typedEventHandler != null)")
-        assertContains(output, "registerTypedEventHandler() must be called before logging events")
+        val output = ClassRenderer.renderHandlerFile()
+        assertContains(output, "checkNotNull(typedEventSink)")
+        assertContains(output, "registerAnalyticsSink() must be called before logging events")
     }
 
     @Test
@@ -79,7 +82,7 @@ class ClassRendererTest {
         )
         val output = ClassRenderer.renderEventsFile("events.yaml", events)
         assertContains(output, "fun logScreenViewed()")
-        assertContains(output, "typedEventHandler?.invoke(\"screen_viewed\", emptyMap())")
+        assertContains(output, "emitTypedEvent(\"screen_viewed\", emptyMap())")
         assertContains(output, "* User viewed a screen")
     }
 
@@ -98,7 +101,7 @@ class ClassRendererTest {
         )
         val output = ClassRenderer.renderEventsFile("events.yaml", events)
         assertContains(output, "fun logPurchaseCompleted(itemId: String, price: Double)")
-        assertContains(output, "typedEventHandler?.invoke(\"purchase_completed\", mapOf(\"item_id\" to itemId, \"price\" to price))")
+        assertContains(output, "emitTypedEvent(\"purchase_completed\", mapOf(\"item_id\" to itemId, \"price\" to price))")
         assertContains(output, "@param itemId The purchased item ID")
         assertContains(output, "@param price Final price paid")
     }
@@ -110,5 +113,47 @@ class ClassRendererTest {
         )
         val output = ClassRenderer.renderEventsFile("events.yaml", events)
         assertFalse(output.contains("instance?.logEvent"))
+    }
+
+    @Test
+    fun `renderFacadeFile delegates through fully-qualified generated functions`() {
+        val events = listOf(
+            EventSpec(
+                "purchase_completed",
+                "User completed a purchase",
+                "logPurchaseCompleted",
+                mapOf("price" to ParamSpec("Double", "Final price paid")),
+            ),
+        )
+        val output = ClassRenderer.renderFacadeFile("events.yaml", events)
+
+        assertContains(output, "object AnalyticsEvents")
+        assertContains(output, "fun logPurchaseCompleted(price: Double)")
+        assertContains(
+            output,
+            "com.rohittp.plugables.analytics.logPurchaseCompleted(price)",
+        )
+    }
+
+    @Test
+    fun `renderSchemaFile pins ordered event and property names`() {
+        val events = listOf(
+            EventSpec(
+                "purchase_completed",
+                "User completed a purchase",
+                "logPurchaseCompleted",
+                linkedMapOf(
+                    "item_id" to ParamSpec("String", "The purchased item ID"),
+                    "price" to ParamSpec("Double", "Final price paid"),
+                ),
+            ),
+        )
+        val output = ClassRenderer.renderSchemaFile("events.yaml", events)
+
+        assertContains(output, "\"purchase_completed\",")
+        assertContains(
+            output,
+            "\"purchase_completed\" to listOf(\"item_id\", \"price\")",
+        )
     }
 }
